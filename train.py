@@ -47,7 +47,7 @@ def main():
 
     # Load the model 
     model = KSGrayBox.KSGrayBox(h=0.25, N=128, uscales=uscales).to(device)
-    optimizer = optim.Adam(model.parameters(), lr=1e-3, betas=(0.9, 0.7), eps=1e-7)
+    optimizer = optim.Adam(model.parameters(), lr=1e-3, betas=(0.9, 0.7), eps=1e-7, weight_decay=1e-10)
     loss_fn = KSLossFunc.KSMeanSquaredError()
 
     def train_loop(_dataloader, _model, _loss_fn, _optimizer):
