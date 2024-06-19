@@ -87,7 +87,8 @@ def main():
 
     # Animate the results
     x = 32*np.pi*np.arange(1,N+1)/N
-    utils.animate_prediction_vs_truth(x=x, predictions=predictions, truth=truth)
+    filename = 'spectral_kurasiv_1d_prediction_vs_truth'
+    utils.animate_prediction_vs_truth(x=x, predictions=predictions, truth=truth, save=True, filename=filename)
     return
 
 if __name__ == "__main__":

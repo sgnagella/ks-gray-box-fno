@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
+import os
 from matplotlib.animation import FuncAnimation
 import pickle
 
@@ -135,7 +136,7 @@ def generate_info_dict(*, train_ratio, val_ratio, traj_list, uscales):
 
     return info
 
-def animate_prediction_vs_truth(*, x, predictions, truth, save=False):
+def animate_prediction_vs_truth(*, x, predictions, truth, save=False, filename=None):
     """ Animate the results of the predictions.
     """
 
@@ -167,8 +168,10 @@ def animate_prediction_vs_truth(*, x, predictions, truth, save=False):
     # Create and display the animation
     ani = FuncAnimation(fig, update, frames=predictions.shape[0], blit=False, interval=250)
     if save:
-        ani.save('spectral_periodic_kurasiv_1d_torch.gif', writer='pillow')
-    plt.show()
+        os.makedirs('figures', exist_ok=True)
+        if '.gif' in filename.split('.'):
+            filename = filename.split('.')[0]
+        ani.save(os.path.join('figures', filename + '.gif'), dpi=200, writer='pillow')
     return None
 
 def export_dict(info_dict, filename):
