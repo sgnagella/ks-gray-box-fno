@@ -27,7 +27,7 @@ f3 = h*((-4-3*LR-LR**2+LR.exp()*(4-LR))/LR**3).mean(dim=1).real
 uu = [u]
 vv = [v]
 tt = [0]
-tmax = 500
+tmax = 1000
 nmax = int(tmax/h)
 nplt = int((tmax/tmax)/h)
 g = -.5j*k
@@ -92,6 +92,6 @@ def update(frame):
     return ax,
 
 # Create and display the animation
-ani = FuncAnimation(fig, update, frames=len(uu), blit=False, interval=150)
+ani = FuncAnimation(fig, update, frames=len(uu), blit=False, interval=300)
 ani.save('spectral_periodic_kurasiv_1d_torch.gif', writer='pillow')
 plt.show()

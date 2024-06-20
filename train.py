@@ -21,7 +21,7 @@ def main():
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     dirname = os.path.dirname(__file__)
-    file = "ks_soln_ft_N_128_dt_0.25_tmax_500.pt"
+    file = "ks_soln_ft_N_128_dt_0.25_tmax_1000.pt"
     filename = os.path.join(dirname, 'training_data', file)
     dest_name = os.path.join(dirname, 'models', 'ks_model.pth')
     info_dest_name = os.path.join(dirname, 'models', 'ks_model_info.pickle')
@@ -31,7 +31,7 @@ def main():
 
     # Load the time series and segment it into smaller trajectories
     traj = torch.load(filename)[1:].numpy()
-    traj_list, uscales = utils.segment_data(data=traj, nLengthTraj=10)
+    traj_list, uscales = utils.segment_data(data=traj, nLengthTraj=15)
     info = utils.generate_info_dict(train_ratio=0.6, val_ratio=0.2, traj_list=traj_list, uscales=uscales)
 
     # Create the dataset and dataloader
@@ -45,8 +45,9 @@ def main():
 
     # Load the model 
     model = KSGrayBox.KSGrayBox(h=0.25, N=128, uscales=uscales).to(device)
-    optimizer = optim.Adam(model.parameters(), lr=1e-2, betas=(0.9, 0.7), eps=1e-7, weight_decay=4e-4, amsgrad=True)
-    loss_fn = KSLossFunc.KSMeanSquaredError()
+    optimizer = optim.Adam(model.parameters(), lr=1e-2, betas=(0.9, 0.7), eps=1e-7, weight_decay=0, amsgrad=True)
+    # loss_fn = KSLossFunc.KSMeanSquaredError()
+    loss_fn = KSLossFunc.KSL1RegNNMeanSquaredError(lam=1e-2)
 
     def train_loop(_dataloader, _model, _loss_fn, _optimizer):
         size = len(_dataloader.dataset)
@@ -56,7 +57,8 @@ def main():
             y = y.to(device)
             pred = _model(y0, steps=y.size(1))
             # print(f"pred shape: {pred.size()}, y shape: {y.size()}")
-            loss = _loss_fn(pred, y)
+            # loss = _loss_fn(pred, y)
+            loss = loss_fn(pred, y, model)
 
             # Backpropagation
             _optimizer.zero_grad()
@@ -73,7 +75,8 @@ def main():
             for y0, y in _dataloader:
                 y = y.to(device)
                 pred = _model(y0, steps=y.size(1))
-                val_loss += _loss_fn(pred, y).item()
+                # val_loss += _loss_fn(pred, y).item()
+                val_loss += _loss_fn(pred, y, model).item()
         val_loss /= num_batches
         print(f"val_loss: {val_loss:.3e}")
         return val_loss
@@ -86,7 +89,8 @@ def main():
             for y0, y in _dataloader:
                 y = y.to(device)
                 pred = _model(y0, steps=y.size(1))
-                test_loss += _loss_fn(pred, y).item()
+                # test_loss += _loss_fn(pred, y).item()
+                test_loss += _loss_fn(pred, y, model).item()
         test_loss /= num_batches
         return pred, test_loss
     
