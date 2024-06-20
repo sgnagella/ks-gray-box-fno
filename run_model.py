@@ -6,10 +6,8 @@ import numpy as np
 import sys
 sys.path.append('util/')
 sys.path.append('lib/')
-import utils
-import KSDataset
-import KSGrayBox
-import KSLossFunc
+from util import utils
+from lib import KSDataset, KSGrayBox, KSLossFunc
 import os
 import pickle
 from time import time
