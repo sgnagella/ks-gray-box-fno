@@ -5,8 +5,8 @@ from torch.utils.data import DataLoader
 import torch.optim as optim
 import numpy as np
 import sys
-# sys.path.append('util/')
-# sys.path.append('lib/')
+sys.path.append('util/')
+sys.path.append('lib/')
 from util import utils
 from lib import KSDataset, KSGrayBox, KSLossFunc
 import os
@@ -45,7 +45,7 @@ def main():
 
     # Load the model 
     model = KSGrayBox.KSGrayBox(h=0.25, N=128, uscales=uscales).to(device)
-    optimizer = optim.Adam(model.parameters(), lr=1e-3, betas=(0.9, 0.7), eps=1e-7, weight_decay=1e-4)
+    optimizer = optim.Adam(model.parameters(), lr=1e-3, betas=(0.9, 0.7), eps=1e-7, weight_decay=1e-5)
     loss_fn = KSLossFunc.KSMeanSquaredError()
 
     def train_loop(_dataloader, _model, _loss_fn, _optimizer):
@@ -95,7 +95,6 @@ def main():
     counter = 0
     best_loss = np.inf
     restart = False
-    print(restart)
     
     try:
         if os.path.isfile(dest_name) and restart:
