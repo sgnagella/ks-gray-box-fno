@@ -45,7 +45,7 @@ def main():
 
     # Load the model 
     model = KSGrayBox.KSGrayBox(h=0.25, N=128, uscales=uscales).to(device)
-    optimizer = optim.Adam(model.parameters(), lr=1e-3, betas=(0.9, 0.7), eps=1e-7, weight_decay=4e-4)
+    optimizer = optim.Adam(model.parameters(), lr=1e-2, betas=(0.9, 0.7), eps=1e-7, weight_decay=4e-4, amsgrad=True)
     loss_fn = KSLossFunc.KSMeanSquaredError()
 
     def train_loop(_dataloader, _model, _loss_fn, _optimizer):
@@ -94,7 +94,7 @@ def main():
     PATIENCE = 150
     counter = 0
     best_loss = np.inf
-    checkpoint = True # continues training from the last checkpoint
+    checkpoint = False # continues training from the last checkpoint
     
     try:
         if os.path.isfile(dest_name) and checkpoint:
