@@ -31,10 +31,11 @@ class KSL2RegMeanSquaredError(nn.Module):
         The loss function is the mean squared error between the predicted
         and true values with a regularization on the learned coefficients.
     """
-    def __init__(self):
-        super(KSMeanSquaredError, self).__init__()
+    def __init__(self, lam=1e-3):
+        super(KSL2RegMeanSquaredError, self).__init__()
+        self.lam = lam
 
-    def forward(self, pred, y, coeffs, lam=1e-3):
+    def forward(self, pred, y, coeffs):
         """
             Forward pass of the loss function.
             Computes the mean squared error between the predicted and true values.
@@ -47,7 +48,7 @@ class KSL2RegMeanSquaredError(nn.Module):
                 y: torch.Tensor (batch_size, tspan, Nmodes), true Fourier coefficients
         """
         err = pred - y
-        return torch.mean(err.real**2 + err.imag**2) + lam * torch.sum(coeffs**2)
+        return torch.mean(err.real**2 + err.imag**2) + self.lam * torch.sum(coeffs**2)
     
 class KSL1RegMeanSquaredError(nn.Module):
     """
@@ -55,10 +56,11 @@ class KSL1RegMeanSquaredError(nn.Module):
         The loss function is the mean squared error between the predicted
         and true values with a regularization on the learned coefficients.
     """
-    def __init__(self):
-        super(KSMeanSquaredError, self).__init__()
+    def __init__(self, lam=1e-3):
+        super(KSL1RegMeanSquaredError, self).__init__()
+        self.lam = lam
 
-    def forward(self, pred, y, coeffs, lam=1e-3):
+    def forward(self, pred, y, coeffs):
         """
             Forward pass of the loss function.
             Computes the mean squared error between the predicted and true values.
@@ -71,4 +73,4 @@ class KSL1RegMeanSquaredError(nn.Module):
                 y: torch.Tensor (batch_size, tspan, Nmodes), true Fourier coefficients
         """
         err = pred - y
-        return torch.mean(err.real**2 + err.imag**2) + lam * torch.sum(torch.abs(coeffs))
+        return torch.mean(err.real**2 + err.imag**2) + self.lam * torch.sum(torch.abs(coeffs))

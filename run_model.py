@@ -63,6 +63,8 @@ def main():
             for ii, (y0, y) in enumerate(_dataloader):
                 y = y.to(device)
                 pred = _model(y0, steps=y.size(1))
+                coeffs = _model.return_coeffs()
+                print(coeffs)
                 test_loss += _loss_fn(pred, y).item()
 
                 # Rescale output for visualization
@@ -88,7 +90,7 @@ def main():
     # Animate the results
     x = 32*np.pi*np.arange(1,N+1)/N
     filename = 'spectral_kurasiv_1d_prediction_vs_truth'
-    utils.animate_prediction_vs_truth(x=x, predictions=predictions, truth=truth, save=True, filename=filename)
+    utils.animate_prediction_vs_truth(x=x, predictions=predictions, truth=truth, save=False, filename=filename)
     return
 
 if __name__ == "__main__":

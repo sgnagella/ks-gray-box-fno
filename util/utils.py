@@ -172,6 +172,8 @@ def animate_prediction_vs_truth(*, x, predictions, truth, save=False, filename=N
         if '.gif' in filename.split('.'):
             filename = filename.split('.')[0]
         ani.save(os.path.join('figures', filename + '.gif'), dpi=200, writer='pillow')
+    
+    plt.show()
     return None
 
 def export_dict(info_dict, filename):
