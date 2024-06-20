@@ -36,7 +36,7 @@ class ODEMLPFunc(nn.Module):
     """
     def __init__(self, N, return_coeffs=False):
         super(ODEMLPFunc, self).__init__()
-        hidden = 16
+        hidden = 8
         output = 4
         n_embeddings = 4
         self.mlp = MLP([n_embeddings*N, hidden, output])

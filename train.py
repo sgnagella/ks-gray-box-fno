@@ -94,10 +94,10 @@ def main():
     PATIENCE = 150
     counter = 0
     best_loss = np.inf
-    restart = False
+    checkpoint = True # continues training from the last checkpoint
     
     try:
-        if os.path.isfile(dest_name) and restart:
+        if os.path.isfile(dest_name) and checkpoint:
             model.load_state_dict(torch.load(dest_name))
             print("Model loaded to continue training.")
 
