@@ -7,10 +7,8 @@ import numpy as np
 import sys
 sys.path.append('util/')
 sys.path.append('lib/')
-import utils
-import KSDataset
-import KSGrayBox
-import KSLossFunc
+from util import utils
+from lib import KSDataset, KSGrayBox, KSLossFunc
 import os
 from time import time
 
@@ -92,12 +90,17 @@ def main():
         test_loss /= num_batches
         return pred, test_loss
     
-    EPOCHS = 500
+    EPOCHS = 1000
     PATIENCE = 100
     counter = 0
     best_loss = np.inf
+    restart = True
     
     try:
+        if os.path.isfile(dest_name) and restart:
+            model.load_state_dict(torch.load(dest_name))
+            print("Model loaded for continuing training.")
+
         toc = time()
         for t in range(EPOCHS):
             print(f"Epoch {t + 1}\n-------------------------------")
@@ -127,8 +130,6 @@ def main():
     except KeyboardInterrupt:
         torch.save(best_dict, dest_name)
         print("Model saved.")
-
-    
 
     return
 

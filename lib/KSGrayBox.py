@@ -146,26 +146,26 @@ class SingleStep(nn.Module):
 
         a = self.E2 * x + self.Q *  Nv
         Na = self.g * fft(self.odefunc(0, self.return_x_input(a, self.aold, self.aold1, self.aold2), self.return_feature_matrix(a)), dim=-1).type(torch.complex64)
-        self.aold2 = self.aold1.clone().detach()
-        self.aold1 = self.aold.clone().detach()
-        self.aold = a.clone().detach()
+        self.aold2 = self.aold1.clone()
+        self.aold1 = self.aold.clone()
+        self.aold = a.clone()
 
         # self.bold = self.aold
         # self.bold1 = self.aold1
 
         b = self.E2 * x + self.Q * Na
-        Nb = self.g * fft(self.odefunc(0, self.return_x_input(b, self.bold, self.bold1, self.aold2), self.return_feature_matrix(b)), dim=-1).type(torch.complex64)
-        self.bold2 = self.bold1.clone().detach()
-        self.bold1 = self.bold.clone().detach()
-        self.bold = b.clone().detach()
+        Nb = self.g * fft(self.odefunc(0, self.return_x_input(b, self.bold, self.bold1, self.bold2), self.return_feature_matrix(b)), dim=-1).type(torch.complex64)
+        self.bold2 = self.bold1.clone()
+        self.bold1 = self.bold.clone()
+        self.bold = b.clone()
 
         # self.cold = self.bold
         # self.cold1 = self.bold1
         c = self.E2 * a + self.Q * (2 * Nb - Nv)
-        Nc = self.g * fft(self.odefunc(0, self.return_x_input(c, self.cold, self.cold1, self.aold2), self.return_feature_matrix(c)), dim=-1).type(torch.complex64)
-        self.cold2 = self.cold1.clone().detach()
-        self.cold1 = self.cold.clone().detach()
-        self.cold = c.clone().detach()
+        Nc = self.g * fft(self.odefunc(0, self.return_x_input(c, self.cold, self.cold1, self.cold2), self.return_feature_matrix(c)), dim=-1).type(torch.complex64)
+        self.cold2 = self.cold1.clone()
+        self.cold1 = self.cold.clone()
+        self.cold = c.clone()
 
         x1 = self.E * x + Nv * self.f1 + 2 * (Na + Nb) * self.f2 + Nc * self.f3
         return x1
@@ -191,9 +191,9 @@ class MultiStep(nn.Module):
     def forward(self, x, steps):
         xs = []
         # Construct vector of current and past states in Fourier space
-        xold = x.clone().detach()
-        xold1 = x.clone().detach()
-        xold2 = x.clone().detach()
+        xold = x.clone()
+        xold1 = x.clone()
+        xold2 = x.clone()
 
         self.stepper.aold = xold
         self.stepper.aold1 = xold1
@@ -212,7 +212,7 @@ class MultiStep(nn.Module):
             xp = self.stepper(x, xold, xold1, xold2)
             xold2 = xold1.clone()
             xold1  = xold.clone()
-            xold = x.clone().detach()
+            xold = x.clone()
             x = xp
             if step % int(1/self.stepper.h) == 0:
                 xs.append(x)
