@@ -12,7 +12,7 @@ class MLP(nn.Module):
         layers = []
         for ind in range(len(nn_dims) - 1):
             if ind != 0:
-                layers.append(nn.LeakyReLU())
+                layers.append(nn.ReLU())
             layers.append(nn.Linear(nn_dims[ind], nn_dims[ind + 1],
                                     dtype=torch.float32,
                                     bias=False))   
@@ -36,7 +36,7 @@ class ODEMLPFunc(nn.Module):
     """
     def __init__(self, N, return_coeffs=False):
         super(ODEMLPFunc, self).__init__()
-        hidden = 8
+        hidden = 16
         output = 4
         n_embeddings = 4
         self.mlp = MLP([n_embeddings*N, hidden, output])
