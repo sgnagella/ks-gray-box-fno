@@ -99,7 +99,7 @@ def main():
     try:
         if os.path.isfile(dest_name) and restart:
             model.load_state_dict(torch.load(dest_name))
-            print("Model loaded for continuing training.")
+            print("Model loaded to continue training.")
 
         toc = time()
         for t in range(EPOCHS):
