@@ -66,7 +66,7 @@ def main():
                 pred = torch.fft.ifft(pred, dim=-1).real
                 coeffs = _model.return_coeffs()
                 print(coeffs)
-                test_loss += _loss_fn(pred, y).item()
+                test_loss += _loss_fn(pred, y, coeffs).item()
 
                 # Rescale output for visualization
                 pred = pred.squeeze() # Remove the batch dimension (only 1 batch size)
