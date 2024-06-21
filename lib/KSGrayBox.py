@@ -37,7 +37,7 @@ class ODEMLPFunc(nn.Module):
     def __init__(self, N, return_coeffs=False):
         super(ODEMLPFunc, self).__init__()
         hidden = 8
-        output = 4
+        output = 1
         n_embeddings = 4
         self.mlp = MLP([n_embeddings*N, hidden, output])
         self.return_coeffs = return_coeffs
@@ -124,7 +124,8 @@ class SingleStep(nn.Module):
 
         # print(f"in KSGraybox.py return_feature_matrix: xreal.size() = {xreal.size()}")
         # x = torch.stack([torch.ones_like(x), xreal, xreal**2, xreal**3]).type(torch.float32)
-        x = torch.stack([xreal, xreal**2, xreal**3, xreal**4]).type(torch.float32)
+        # x = torch.stack([xreal, xreal**2, xreal**3, xreal**4]).type(torch.float32)
+        x = torch.stack([xreal**2]).type(torch.float32)
 
         x = torch.permute(x, (1,2,0,3)) # size(batch_size, 1, 2, N)
         # print(f"in KSGraybox.py return_feature_matrix: x.size() = {x.size()}")
