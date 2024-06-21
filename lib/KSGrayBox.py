@@ -123,7 +123,8 @@ class SingleStep(nn.Module):
         xreal = ifft(x, dim=-1).real
 
         # print(f"in KSGraybox.py return_feature_matrix: xreal.size() = {xreal.size()}")
-        x = torch.stack([torch.ones_like(x), xreal, xreal**2, xreal**3]).type(torch.float32)
+        # x = torch.stack([torch.ones_like(x), xreal, xreal**2, xreal**3]).type(torch.float32)
+        x = torch.stack([xreal, xreal**2, xreal**3, xreal**4]).type(torch.float32)
 
         x = torch.permute(x, (1,2,0,3)) # size(batch_size, 1, 2, N)
         # print(f"in KSGraybox.py return_feature_matrix: x.size() = {x.size()}")
