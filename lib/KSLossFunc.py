@@ -74,7 +74,8 @@ class KSL1RegMeanSquaredError(nn.Module):
                 y: torch.Tensor (batch_size, tspan, Nmodes), true Fourier coefficients
         """
         err = pred - y
-        return torch.mean(err.real**2 + err.imag**2) + self.lam * torch.sum(torch.abs(coeffs))
+        eps = 1e-8
+        return torch.mean(err.real**2 + err.imag**2) + self.lam * torch.mean(torch.sqrt(coeffs**2 + eps))
     
 class KSL1RegNNMeanSquaredError(nn.Module):
     """

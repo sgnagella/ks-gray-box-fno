@@ -44,10 +44,11 @@ def main():
     test_dataloader = DataLoader(test_data, batch_size=1)
 
     # Load the model 
-    model = KSGrayBox.KSGrayBox(h=0.25, N=128, uscales=uscales).to(device)
+    model = KSGrayBox.KSGrayBox(h=0.25, N=128, uscales=uscales, return_coeffs=True).to(device)
     optimizer = optim.Adam(model.parameters(), lr=1e-2, betas=(0.9, 0.999), eps=1e-7, weight_decay=0, amsgrad=True)
     # loss_fn = KSLossFunc.KSMeanSquaredError()
-    loss_fn = KSLossFunc.KSL1RegNNMeanSquaredError(lam=0)
+    loss_fn = KSLossFunc.KSL1RegMeanSquaredError(lam=1e-3)
+    # loss_fn = KSLossFunc.KSL1RegNNMeanSquaredError(lam=0)
 
     def train_loop(_dataloader, _model, _loss_fn, _optimizer):
         size = len(_dataloader.dataset)
@@ -58,7 +59,7 @@ def main():
             pred = _model(y0, steps=y.size(1))
             # print(f"pred shape: {pred.size()}, y shape: {y.size()}")
             # loss = _loss_fn(pred, y)
-            loss = loss_fn(pred, y, model)
+            loss = loss_fn(pred, y, _model.return_coeffs())
 
             # Backpropagation
             _optimizer.zero_grad()
@@ -76,7 +77,7 @@ def main():
                 y = y.to(device)
                 pred = _model(y0, steps=y.size(1))
                 # val_loss += _loss_fn(pred, y).item()
-                val_loss += _loss_fn(pred, y, model).item()
+                val_loss += _loss_fn(pred, y, _model.return_coeffs()).item()
         val_loss /= num_batches
         print(f"val_loss: {val_loss:.3e}")
         return val_loss
@@ -90,7 +91,7 @@ def main():
                 y = y.to(device)
                 pred = _model(y0, steps=y.size(1))
                 # test_loss += _loss_fn(pred, y).item()
-                test_loss += _loss_fn(pred, y, model).item()
+                test_loss += _loss_fn(pred, y, _model.return_coeffs()).item()
         test_loss /= num_batches
         return pred, test_loss
     
