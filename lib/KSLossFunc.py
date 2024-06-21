@@ -100,4 +100,5 @@ class KSL1RegNNMeanSquaredError(nn.Module):
                 _model: torch.nn.Module, the model
         """
         err = pred - y
-        return torch.mean(err.real**2 + err.imag**2) + self.lam * torch.mean(torch.abs(parameters_to_vector(_model.parameters())))
+        eps = 1e-8
+        return torch.mean(err.real**2 + err.imag**2) + self.lam * torch.mean(torch.sqrt(parameters_to_vector(_model.parameters())**2 + eps))

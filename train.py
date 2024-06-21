@@ -31,7 +31,7 @@ def main():
 
     # Load the time series and segment it into smaller trajectories
     traj = torch.load(filename)[1:].numpy()
-    traj_list, uscales = utils.segment_data(data=traj, nLengthTraj=15)
+    traj_list, uscales = utils.segment_data(data=traj, nLengthTraj=20)
     info = utils.generate_info_dict(train_ratio=0.6, val_ratio=0.2, traj_list=traj_list, uscales=uscales)
 
     # Create the dataset and dataloader
@@ -45,7 +45,7 @@ def main():
 
     # Load the model 
     model = KSGrayBox.KSGrayBox(h=0.25, N=128, uscales=uscales).to(device)
-    optimizer = optim.Adam(model.parameters(), lr=1e-2, betas=(0.9, 0.7), eps=1e-7, weight_decay=0, amsgrad=True)
+    optimizer = optim.Adam(model.parameters(), lr=1e-2, betas=(0.9, 0.999), eps=1e-7, weight_decay=0, amsgrad=True)
     # loss_fn = KSLossFunc.KSMeanSquaredError()
     loss_fn = KSLossFunc.KSL1RegNNMeanSquaredError(lam=1e-2)
 
