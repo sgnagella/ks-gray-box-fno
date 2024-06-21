@@ -29,8 +29,9 @@ def main():
         raise FileNotFoundError(f"File {filename} not found.")
 
     # Load the time series and segment it into smaller trajectories
-    traj = torch.load(filename)[1:].numpy()
-    traj_list, uscales = utils.segment_data(data=traj, nLengthTraj=10)
+    with torch.no_grad():
+        traj = torch.fft.ifft(torch.load(filename)[1:], dim=-1).real.numpy()
+    traj_list, uscales = utils.segment_data(data=traj, nLengthTraj=20)
     info = utils.generate_info_dict(train_ratio=0.6, val_ratio=0.2, traj_list=traj_list, uscales=uscales)
 
     # Create the dataset and dataloader
@@ -38,7 +39,7 @@ def main():
     test_dataloader = DataLoader(test_data, batch_size=1)
 
     # Loss Function
-    loss_fn = KSLossFunc.KSMeanSquaredError()
+    loss_fn = KSLossFunc.KSL2RegRealMeanSquaredError(lam=1e-2)
 
     # Get the scales from the test_data
     test_scales = test_data.uscales
@@ -59,8 +60,10 @@ def main():
         truth = []
         with torch.no_grad():
             for ii, (y0, y) in enumerate(_dataloader):
+                y0 = torch.fft.fft(y0, dim=-1)
                 y = y.to(device)
                 pred = _model(y0, steps=y.size(1))
+                pred = torch.fft.ifft(pred, dim=-1).real
                 coeffs = _model.return_coeffs()
                 print(coeffs)
                 test_loss += _loss_fn(pred, y).item()
