@@ -51,6 +51,7 @@ def main():
     optimizer = optim.Adam(model.parameters(), lr=1e-3, betas=(0.9, 0.7), eps=1e-7, weight_decay=0, amsgrad=True)
     loss_fn = KSLossFunc.KSL2RegRealMeanSquaredError(lam=1e-2)
 
+    exit()
     def train_loop(_dataloader, _model, _loss_fn, _optimizer):
         size = len(_dataloader.dataset)
         for y0, y in _dataloader:
