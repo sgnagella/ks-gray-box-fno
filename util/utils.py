@@ -62,6 +62,32 @@ def segment_data(*, data, nLengthTraj):
     # Return the list of segmented data.
     return data_list , {"umin": np.array(u_mins), "umax": np.array(u_maxs)}
 
+# def get_uscales(traj_list): 
+#     """
+#         Get the scales for the data trajectories.
+#         Can use this function in case of performing scaling in different space.
+#     """
+
+#     # Sizes.
+#     nTraj = len(traj_list)
+
+#     # Lists to store the min and max values.
+#     u_mins = []
+#     u_maxs = []
+
+#     # Loop through all the data trajectories.
+#     for ii in range(nTraj):
+#         # Get the current trajectory.
+#         traj = traj_list[ii]
+#         umin, umax = np.min(traj), np.max(traj)
+#         u_mins.append(umin)
+#         u_maxs.append(umax)
+
+#     # Return the scales.
+#     return {"umin": np.array(u_mins), "umax": np.array(u_maxs)}
+
+# def 
+
 def get_train_val_data(*, data_list, uscales,
                        nTrainTraj, nTrainValTraj):
     """ Scale all the data trajectories using the provided
@@ -84,7 +110,8 @@ def get_train_val_data(*, data_list, uscales,
     # Loop through all the data trajectories in the data list.
     for ii, data in enumerate(data_list):
         # Scale data.
-        u = (data - umin[ii])/(umax[ii] - umin[ii])
+        # u = (data - umin[ii])/(umax[ii] - umin[ii])
+        u = 2*(data - umin[ii])/(umax[ii] - umin[ii]) - 1 # Scale to [-1, 1]
         useq += [u]
         useq0 += [u[0][None,:]]
 

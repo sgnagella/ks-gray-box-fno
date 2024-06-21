@@ -67,8 +67,10 @@ def main():
 
                 # Rescale output for visualization
                 pred = pred.squeeze() # Remove the batch dimension (only 1 batch size)
-                predictions.append(pred * (test_scales['umax'][ii] - test_scales['umin'][ii]) + test_scales['umin'][ii])
-                truth.append(y.squeeze() * (test_scales['umax'][ii] - test_scales['umin'][ii]) + test_scales['umin'][ii])
+                # predictions.append(pred * (test_scales['umax'][ii] - test_scales['umin'][ii]) + test_scales['umin'][ii])
+                predictions.append(0.5*(pred+1) * (test_scales['umax'][ii] - test_scales['umin'][ii]) + test_scales['umin'][ii])
+                # truth.append(y.squeeze() * (test_scales['umax'][ii] - test_scales['umin'][ii]) + test_scales['umin'][ii])
+                truth.append(0.5*(y.squeeze()+1) * (test_scales['umax'][ii] - test_scales['umin'][ii]) + test_scales['umin'][ii])
 
             predictions = torch.cat(predictions, dim=0)
             truth = torch.cat(truth, dim=0)

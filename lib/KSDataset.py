@@ -3,7 +3,7 @@ from torch.utils.data import Dataset
 import numpy as np
 import sys
 sys.path.append('../util/')
-import utils
+from util import utils
 
 class KSDataset(Dataset):
     """

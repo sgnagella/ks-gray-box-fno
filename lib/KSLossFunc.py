@@ -51,6 +51,55 @@ class KSL2RegMeanSquaredError(nn.Module):
         err = pred - y
         return torch.mean(err.real**2 + err.imag**2) + self.lam * torch.sum(coeffs**2)
     
+class KSL1RegRealMeanSquaredError(nn.Module):
+    """
+        Loss function for the Kuramoto-Sivashinsky gray-box model.
+        The loss function is the real-space mean squared error between the predicted
+        and true values with a regularization on the learned coefficients.
+    """
+    def __init__(self, lam=1e-3):
+        super(KSL1RegRealMeanSquaredError, self).__init__()
+        self.lam = lam
+
+    def forward(self, pred, y, coeffs):
+        """
+            Forward pass of the loss function.
+            Computes the mean squared error between the predicted and true values.
+            Inputs are real-valued predicted field and their true values.
+
+            Inputs:
+                pred: torch.Tensor (batch_size, tspan, Nmodes), predicted Fourier coefficients
+                y: torch.Tensor (batch_size, tspan, Nmodes), true Fourier coefficients
+        """
+        err = pred - y
+        eps = 1e-8
+        return torch.mean(err**2) + self.lam * torch.mean(torch.sqrt(coeffs**2 + eps))
+    
+
+class KSL2RegRealMeanSquaredError(nn.Module):
+    """
+        Loss function for the Kuramoto-Sivashinsky gray-box model.
+        The loss function is the real-space mean squared error between the predicted
+        and true values with a regularization on the learned coefficients.
+    """
+    def __init__(self, lam=1e-3):
+        super(KSL2RegRealMeanSquaredError, self).__init__()
+        self.lam = lam
+
+    def forward(self, pred, y, coeffs):
+        """
+            Forward pass of the loss function.
+            Computes the mean squared error between the predicted and true values.
+            Inputs are real-valued predicted field and their true values.
+
+            Inputs:
+                pred: torch.Tensor (batch_size, tspan, Nmodes), predicted Fourier coefficients
+                y: torch.Tensor (batch_size, tspan, Nmodes), true Fourier coefficients
+        """
+        err = pred - y
+        eps = 1e-8
+        return torch.mean(err**2) + self.lam * torch.mean(coeffs ** 2)
+    
 class KSL1RegMeanSquaredError(nn.Module):
     """
         Loss function for the Kuramoto-Sivashinsky gray-box model.
