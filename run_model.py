@@ -44,6 +44,7 @@ def main():
 
     # Get the scales from the test_data
     test_scales = test_data.uscales
+    scale = 4.5
 
     # Load the model in evaluation mode
     N = 128
@@ -64,9 +65,12 @@ def main():
                 # y0 = torch.fft.fft(y0, dim=-1)
                 y = y.to(device)
                 pred = _model(y0, steps=y.size(1))
+
+                y = torch.fft.ifft(y, dim=-1).real
                 pred = torch.fft.ifft(pred, dim=-1).real
                 coeffs = _model.return_coeffs()
                 print(coeffs)
+
                 test_loss += _loss_fn(pred, y, coeffs).item()
 
                 # Rescale output for visualization
@@ -76,8 +80,8 @@ def main():
                 # truth.append(y.squeeze() * (test_scales['umax'][ii] - test_scales['umin'][ii]) + test_scales['umin'][ii])
                 # truth.append(0.5*(y.squeeze()+1) * (test_scales['umax'][ii] - test_scales['umin'][ii]) + test_scales['umin'][ii])
 
-                predictions.append(pred)
-                truth.append(y.squeeze())
+                predictions.append(pred * scale)
+                truth.append(y.squeeze() * scale)
 
             predictions = torch.cat(predictions, dim=0)
             truth = torch.cat(truth, dim=0)
@@ -89,8 +93,12 @@ def main():
     print(f"Test Loss: {test_loss}")
 
     # Animate the results
-    predictions = torch.fft.ifft(predictions, dim=1).detach().numpy()
-    truth = torch.fft.ifft(truth, dim=1).detach().numpy()
+    # predictions = torch.fft.ifft(predictions, dim=1).detach().numpy()
+    # truth = torch.fft.ifft(truth, dim=1).detach().numpy()
+
+    # Print min/max of real space data
+    print(f"Min of truth: {truth.min()}")
+    print(f"Max of truth: {truth.max()}")
     print(f"Predictions shape: {predictions.shape}")
     print(f"Tests shape: {truth.shape}")
 
