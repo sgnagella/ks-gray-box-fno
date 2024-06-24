@@ -35,7 +35,9 @@ def main():
     #     traj = torch.fft.ifft(torch.load(filename)[1:], dim=-1).real.numpy()
 
     traj = torch.load(filename)[1:].numpy()
-    traj_list, uscales = utils.segment_data(data=traj, nLengthTraj=20)
+    # traj_ifft = torch.fft.ifft(torch.tensor(traj/4.5), dim=-1).real.numpy()
+    # print("min and max of training data: ", np.min(traj_ifft), np.max(traj_ifft))
+    traj_list, uscales = utils.segment_data(data=traj, nLengthTraj=10)
     info = utils.generate_info_dict(train_ratio=0.6, val_ratio=0.2, traj_list=traj_list, uscales=uscales)
 
     # Create the dataset and dataloader
@@ -52,6 +54,7 @@ def main():
     optimizer = optim.Adam(model.parameters(), lr=1e-3, betas=(0.9, 0.7), eps=1e-7, weight_decay=0, amsgrad=True)
     loss_fn = KSLossFunc.KSL2RegRealMeanSquaredError(lam=1e-2)
 
+    # exit()
     def train_loop(_dataloader, _model, _loss_fn, _optimizer):
         size = len(_dataloader.dataset)
         for y0, y in _dataloader:
@@ -115,7 +118,7 @@ def main():
     PATIENCE = 150
     counter = 0
     best_loss = np.inf
-    checkpoint = True # continues training from the last checkpoint
+    checkpoint = False # continues training from the last checkpoint
     
     try:
         if os.path.isfile(dest_name) and checkpoint:

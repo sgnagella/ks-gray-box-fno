@@ -98,7 +98,7 @@ class KSL2RegRealMeanSquaredError(nn.Module):
         """
         err = pred - y
         eps = 1e-8
-        return torch.mean(err**2) + self.lam * torch.mean(coeffs ** 2)
+        return torch.mean(err**2) + self.lam * (torch.mean(coeffs ** 2))
     
 class KSL1RegMeanSquaredError(nn.Module):
     """
