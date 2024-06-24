@@ -31,14 +31,15 @@ def main():
 
     # Load the time series and segment it into smaller trajectories
     # The data is stored in the Fourier space, so convert to real space to prepare training data
-    with torch.no_grad():
-        traj = torch.fft.ifft(torch.load(filename)[1:], dim=-1).real.numpy()
+    # with torch.no_grad():
+    #     traj = torch.fft.ifft(torch.load(filename)[1:], dim=-1).real.numpy()
+
+    traj = torch.load(filename)[1:].numpy()
     traj_list, uscales = utils.segment_data(data=traj, nLengthTraj=20)
     info = utils.generate_info_dict(train_ratio=0.6, val_ratio=0.2, traj_list=traj_list, uscales=uscales)
 
     # Create the dataset and dataloader
     train_data = KSDataset.KSDataset(info=info, train_key="train", set_type="train")
-    print(torch.min(train_data.useq0), torch.max(train_data.useq0))
     val_data = KSDataset.KSDataset(info=info, train_key="train", set_type="val")
     test_data = KSDataset.KSDataset(info=info, train_key="train", set_type="test")
 
@@ -51,15 +52,16 @@ def main():
     optimizer = optim.Adam(model.parameters(), lr=1e-3, betas=(0.9, 0.7), eps=1e-7, weight_decay=0, amsgrad=True)
     loss_fn = KSLossFunc.KSL2RegRealMeanSquaredError(lam=1e-2)
 
-    exit()
     def train_loop(_dataloader, _model, _loss_fn, _optimizer):
         size = len(_dataloader.dataset)
         for y0, y in _dataloader:
             # print(y0.size(1), y.size(1))
             # Compute prediction and loss
             y = y.to(device)
-            y0 = torch.fft.fft(y0, dim=-1)
+            # y0 = torch.fft.fft(y0, dim=-1)
             pred = _model(y0, steps=y.size(1))
+
+            y = torch.fft.ifft(y, dim=-1).real
             pred = torch.fft.ifft(pred, dim=-1).real
 
             # print(f"pred shape: {pred.size()}, y shape: {y.size()}")
@@ -80,9 +82,11 @@ def main():
         val_loss = 0
         with torch.no_grad():
             for y0, y in _dataloader:
-                y0 = torch.fft.fft(y0, dim=-1)
+                # y0 = torch.fft.fft(y0, dim=-1)
                 y = y.to(device)
                 pred = _model(y0, steps=y.size(1))
+
+                y = torch.fft.ifft(y, dim=-1).real
                 pred = torch.fft.ifft(pred, dim=-1).real
                 # val_loss += _loss_fn(pred, y).item()
                 val_loss += _loss_fn(pred, y, _model.return_coeffs()).item()
@@ -96,9 +100,11 @@ def main():
         test_loss = 0
         with torch.no_grad():
             for y0, y in _dataloader:
-                y0 = torch.fft.fft(y0, dim=-1)
+                # y0 = torch.fft.fft(y0, dim=-1)
                 y = y.to(device)
                 pred = _model(y0, steps=y.size(1))
+
+                y = torch.fft.ifft(y, dim=-1).real
                 pred = torch.fft.ifft(pred, dim=-1).real
                 # test_loss += _loss_fn(pred, y).item()
                 test_loss += _loss_fn(pred, y, _model.return_coeffs()).item()

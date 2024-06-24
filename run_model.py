@@ -29,8 +29,9 @@ def main():
         raise FileNotFoundError(f"File {filename} not found.")
 
     # Load the time series and segment it into smaller trajectories
-    with torch.no_grad():
-        traj = torch.fft.ifft(torch.load(filename)[1:], dim=-1).real.numpy()
+    # with torch.no_grad():
+    #     traj = torch.fft.ifft(torch.load(filename)[1:], dim=-1).real.numpy()
+    traj = torch.load(filename)[1:].numpy()
     traj_list, uscales = utils.segment_data(data=traj, nLengthTraj=20)
     info = utils.generate_info_dict(train_ratio=0.6, val_ratio=0.2, traj_list=traj_list, uscales=uscales)
 
@@ -60,7 +61,7 @@ def main():
         truth = []
         with torch.no_grad():
             for ii, (y0, y) in enumerate(_dataloader):
-                y0 = torch.fft.fft(y0, dim=-1)
+                # y0 = torch.fft.fft(y0, dim=-1)
                 y = y.to(device)
                 pred = _model(y0, steps=y.size(1))
                 pred = torch.fft.ifft(pred, dim=-1).real
@@ -71,9 +72,12 @@ def main():
                 # Rescale output for visualization
                 pred = pred.squeeze() # Remove the batch dimension (only 1 batch size)
                 # predictions.append(pred * (test_scales['umax'][ii] - test_scales['umin'][ii]) + test_scales['umin'][ii])
-                predictions.append(0.5*(pred+1) * (test_scales['umax'][ii] - test_scales['umin'][ii]) + test_scales['umin'][ii])
+                # predictions.append(0.5*(pred+1) * (test_scales['umax'][ii] - test_scales['umin'][ii]) + test_scales['umin'][ii])
                 # truth.append(y.squeeze() * (test_scales['umax'][ii] - test_scales['umin'][ii]) + test_scales['umin'][ii])
-                truth.append(0.5*(y.squeeze()+1) * (test_scales['umax'][ii] - test_scales['umin'][ii]) + test_scales['umin'][ii])
+                # truth.append(0.5*(y.squeeze()+1) * (test_scales['umax'][ii] - test_scales['umin'][ii]) + test_scales['umin'][ii])
+
+                predictions.append(pred)
+                truth.append(y.squeeze())
 
             predictions = torch.cat(predictions, dim=0)
             truth = torch.cat(truth, dim=0)

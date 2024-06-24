@@ -97,6 +97,7 @@ def get_train_val_data(*, data_list, uscales,
 
     # Extract the min and max scalings
     umin, umax = uscales["umin"], uscales["umax"]
+    scale = 4.5 
 
     # Sizes.
     nTraj = len(data_list)
@@ -111,7 +112,8 @@ def get_train_val_data(*, data_list, uscales,
     for ii, data in enumerate(data_list):
         # Scale data.
         # u = (data - umin[ii])/(umax[ii] - umin[ii])
-        u = 2*(data - umin[ii])/(umax[ii] - umin[ii]) - 1 # Scale to [-1, 1]
+        # u = 2*(data - umin[ii])/(umax[ii] - umin[ii]) - 1 # Scale to [-1, 1]
+        u = data / scale
         useq += [u]
         useq0 += [u[0][None,:]]
 
