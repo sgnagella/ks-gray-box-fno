@@ -39,7 +39,7 @@ class ODEMLPFunc(nn.Module):
         super(ODEMLPFunc, self).__init__()
         hidden = 8
         output = 2
-        n_embeddings = 2
+        n_embeddings = 4
         self.mlp = MLP([n_embeddings*N, hidden, output])
         self.return_coeffs = return_coeffs
         self.coeffs = None
@@ -135,22 +135,22 @@ class SingleStep(nn.Module):
 
         return x
     
-    def return_x_input(self, x, xold): 
-        out = ifft(torch.stack([x, xold]), dim=-1).real
+    def return_x_input(self, x, xold, xold1, xold2): 
+        out = ifft(torch.stack([x, xold, xold1, xold2]), dim=-1).real
         out = torch.permute(out, (1,2,0,3))
         out = out.reshape(out.shape[0], out.shape[1], -1)
         # print(f"in KSGraybox.py return_x_input: out.size() = {out.size()}")
         return out
 
-    def forward(self, x, xold):
+    def forward(self, x, xold, xold1, xold2):
         # Inputs to model are current state and past state in Fourier space
-        Nv = self.g * fft(self.odefunc(0, self.return_x_input(x, xold), self.return_feature_matrix(x)), dim=-1).type(torch.complex64)
+        Nv = self.g * fft(self.odefunc(0, self.return_x_input(x, xold, xold1, xold2), self.return_feature_matrix(x)), dim=-1).type(torch.complex64)
         
         # self.aold = xold
         # self.aold1 = xold1
 
         a = self.E2 * x + self.Q *  Nv
-        Na = self.g * fft(self.odefunc(0, self.return_x_input(a, self.aold), self.return_feature_matrix(a)), dim=-1).type(torch.complex64)
+        Na = self.g * fft(self.odefunc(0, self.return_x_input(a, self.aold, self.aold1, self.aold2), self.return_feature_matrix(a)), dim=-1).type(torch.complex64)
         self.aold2 = self.aold1.clone()
         self.aold1 = self.aold.clone()
         self.aold = a.clone()
@@ -159,7 +159,7 @@ class SingleStep(nn.Module):
         # self.bold1 = self.aold1
 
         b = self.E2 * x + self.Q * Na
-        Nb = self.g * fft(self.odefunc(0, self.return_x_input(b, self.bold), self.return_feature_matrix(b)), dim=-1).type(torch.complex64)
+        Nb = self.g * fft(self.odefunc(0, self.return_x_input(b, self.bold, self.bold1, self.bold2), self.return_feature_matrix(b)), dim=-1).type(torch.complex64)
         self.bold2 = self.bold1.clone()
         self.bold1 = self.bold.clone()
         self.bold = b.clone()
@@ -167,7 +167,7 @@ class SingleStep(nn.Module):
         # self.cold = self.bold
         # self.cold1 = self.bold1
         c = self.E2 * a + self.Q * (2 * Nb - Nv)
-        Nc = self.g * fft(self.odefunc(0, self.return_x_input(c, self.cold), self.return_feature_matrix(c)), dim=-1).type(torch.complex64)
+        Nc = self.g * fft(self.odefunc(0, self.return_x_input(c, self.cold, self.cold1, self.cold2), self.return_feature_matrix(c)), dim=-1).type(torch.complex64)
         self.cold2 = self.cold1.clone()
         self.cold1 = self.cold.clone()
         self.cold = c.clone()
@@ -214,7 +214,7 @@ class MultiStep(nn.Module):
 
         for step in range(steps):
             t = self.stepper.h*step
-            xp = self.stepper(x, xold)
+            xp = self.stepper(x, xold, xold1, xold2)
             xold2 = xold1.clone()
             xold1  = xold.clone()
             xold = x.clone()
