@@ -182,15 +182,15 @@ class KSL2RegRealDtCorrWeightMeanSquaredError(nn.Module):
                 y: torch.Tensor (2*batch_size, tspan, Nmodes), true solution and its time derivative 
         """
         batch_size = Pred.size(0)//2
-        err = (Pred - Y)**2
-        weight = torch.ones(Pred.size(0))
-        corr_weight = 50
-        weight = torch.exp(-corr_weight * compute_auto_correlation(data=err))
+        tspan = Pred.size(1)
+        err = (Pred - Y) ** 2
+        corr_weight = 10
+        weight = 1 - torch.exp( -(corr_weight * compute_auto_correlation(data=err[:batch_size])) )
+        weight = torch.cat([torch.ones((batch_size, tspan)), weight], dim=0)
         # print(weight)
-        err = weight[...,None] * err
         # err[batch_size:] = err[batch_size:] * weight
         eps = 1e-10
-        return torch.mean(err) + self.lam * torch.mean(coeffs**2)      
+        return torch.mean(weight[..., None] * err) + self.lam * torch.mean(coeffs**2)      
 
 class KSL2RegRealMeanSquaredError(nn.Module):
     """
