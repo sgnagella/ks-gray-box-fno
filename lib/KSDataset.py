@@ -1,5 +1,7 @@
 import torch
 from torch.utils.data import Dataset
+from torchcubicspline import(natural_cubic_spline_coeffs, 
+                             NaturalCubicSpline)
 import numpy as np
 import sys
 sys.path.append('../util/')
@@ -30,7 +32,9 @@ class KSDataset(Dataset):
         else:
             raise ValueError('set_type must be one of the following: ["train", "val", "test"')
 
-        self.useq = torch.from_numpy(data['useq'])
+        self.useq = torch.fft.ifft(torch.from_numpy(data['useq']), dim=-1).real
+        times = torch.arange(self.useq.size(1)).type(torch.float32)
+        self.useq_dt = NaturalCubicSpline(natural_cubic_spline_coeffs(times, self.useq)).derivative(times)
         self.useq0 = torch.from_numpy(data['useq0'])
         self.uscales = {'umin': torch.from_numpy(data['uscales']['umin']).type(torch.complex64), 
                         'umax': torch.from_numpy(data['uscales']['umax']).type(torch.complex64)}
@@ -40,4 +44,4 @@ class KSDataset(Dataset):
         return self.useq.shape[0]
 
     def __getitem__(self, idx):
-        return self.useq0[idx], self.useq[idx]
+        return self.useq0[idx], (self.useq[idx], self.useq_dt[idx])

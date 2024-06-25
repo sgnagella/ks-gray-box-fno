@@ -165,7 +165,7 @@ def generate_info_dict(*, train_ratio, val_ratio, traj_list, uscales):
 
     return info
 
-def animate_prediction_vs_truth(*, x, predictions, truth, save=False, filename=None):
+def animate_prediction_vs_truth(*, x, predictions, truth, save=False, filename=None, predictions_dt=None, truth_dt=None):
     """ Animate the results of the predictions.
     """
 
@@ -174,6 +174,11 @@ def animate_prediction_vs_truth(*, x, predictions, truth, save=False, filename=N
     fig, ax = plt.subplots(num=1, clear=True)
     l1 = ax.plot(x, predictions[0], lw=2, color='blue', label='Prediction')
     l2 = ax.plot(x, truth[0], lw=2, color='red', label='Truth')
+
+    if predictions_dt is not None and truth_dt is not None:
+        l3 = ax.plot(x, predictions_dt[0], lw=2, color='blue', linestyle='--', label='Prediction (dt)')
+        l4 = ax.plot(x, truth_dt[0], lw=2, color='red', linestyle='--', label='Truth (dt)')
+
     ax.set_xlim(x[0], x[-1])
     ax.set_ylim(-10,10)
     ax.set_xlabel('x')
@@ -188,6 +193,10 @@ def animate_prediction_vs_truth(*, x, predictions, truth, save=False, filename=N
     def update(frame):
         l1[0].set_ydata(predictions[frame])
         l2[0].set_ydata(truth[frame])
+
+        if predictions_dt is not None and truth_dt is not None:
+            l3[0].set_ydata(predictions_dt[frame])
+            l4[0].set_ydata(truth_dt[frame])
 
         # Update the timer
         timer_text.set_text(r'$\tau = {}$'.format(frame))

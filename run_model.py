@@ -1,6 +1,8 @@
 import torch
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
+from torchcubicspline import(natural_cubic_spline_coeffs, 
+                             NaturalCubicSpline)
 import torch.optim as optim
 import numpy as np
 import sys
@@ -19,9 +21,9 @@ def main():
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     dirname = os.path.dirname(__file__)
-    file_model = "ks_model_v2.pth"; "ks_model.pth"
+    file_model = "ks_model.pth"; "ks_model_v2.pth"
     pth_file = os.path.join(dirname, 'models', file_model)
-    file = "ks_soln_ft_N_128_dt_0.25_tmax_500.pt"
+    file = "ks_soln_ft_N_128_dt_0.25_tmax_1000.pt"
     filename = os.path.join(dirname, 'training_data', file)
     if not os.path.exists(pth_file):
         raise FileNotFoundError(f"File {pth_file} not found.")
@@ -30,8 +32,6 @@ def main():
         raise FileNotFoundError(f"File {filename} not found.")
 
     # Load the time series and segment it into smaller trajectories
-    # with torch.no_grad():
-    #     traj = torch.fft.ifft(torch.load(filename)[1:], dim=-1).real.numpy()
     traj = torch.load(filename)[1:].numpy()
     traj_list, uscales = utils.segment_data(data=traj, nLengthTraj=20)
     info = utils.generate_info_dict(train_ratio=0.6, val_ratio=0.2, traj_list=traj_list, uscales=uscales)
@@ -41,7 +41,8 @@ def main():
     test_dataloader = DataLoader(test_data, batch_size=1)
 
     # Loss Function
-    loss_fn = KSLossFunc.KSL1RegRealMeanSquaredError(lam=1e-2)
+    lam = 0; 1e-2
+    loss_fn = KSLossFunc.KSL1RegRealMeanSquaredError(lam=lam)
 
     # Get the scales from the test_data
     test_scales = test_data.uscales
@@ -55,48 +56,46 @@ def main():
 
     def test_loop(_dataloader, _model, _loss_fn):
         size = len(_dataloader.dataset)
-        # print(size)
         num_batches = len(_dataloader)
-        # print(num_batches)
         test_loss = 0
         predictions = []
+        predictions_dt = []
         truth = []
+        truth_dt = []
         with torch.no_grad():
-            for ii, (y0, y) in enumerate(_dataloader):
-                # y0 = torch.fft.fft(y0, dim=-1)
+            times = torch.arange(_dataloader.dataset.useq.size(1)).type(torch.float32)
+            for ii, (y0, Y) in enumerate(_dataloader):
+                y, ydt = Y
+                Y = torch.cat([y, ydt], dim=0)
+                ydt = ydt.to(device)
                 y = y.to(device)
                 pred = _model(y0, steps=y.size(1))
-
-                y = torch.fft.ifft(y, dim=-1).real
                 pred = torch.fft.ifft(pred, dim=-1).real
-                coeffs = _model.return_coeffs()
-                print(coeffs)
-
-                test_loss += _loss_fn(pred, y, coeffs).item()
+                pred_dt = NaturalCubicSpline(natural_cubic_spline_coeffs(times, pred)).derivative(times)
 
                 # Rescale output for visualization
-                pred = pred.squeeze() # Remove the batch dimension (only 1 batch size)
-                # predictions.append(pred * (test_scales['umax'][ii] - test_scales['umin'][ii]) + test_scales['umin'][ii])
-                # predictions.append(0.5*(pred+1) * (test_scales['umax'][ii] - test_scales['umin'][ii]) + test_scales['umin'][ii])
-                # truth.append(y.squeeze() * (test_scales['umax'][ii] - test_scales['umin'][ii]) + test_scales['umin'][ii])
-                # truth.append(0.5*(y.squeeze()+1) * (test_scales['umax'][ii] - test_scales['umin'][ii]) + test_scales['umin'][ii])
-
-                predictions.append(pred * scale)
+                predictions.append(pred.squeeze() * scale)
+                predictions_dt.append(pred_dt.squeeze() * scale)
                 truth.append(y.squeeze() * scale)
+                truth_dt.append(ydt.squeeze() * scale)
+
+                pred = torch.cat([pred, pred_dt], dim=0)
+                coeffs = _model.return_coeffs()
+                print(f"coeffs: {coeffs}")
+                test_loss += _loss_fn(pred, Y, coeffs).item()
 
             predictions = torch.cat(predictions, dim=0)
+            predictions_dt = torch.cat(predictions_dt, dim=0)
             truth = torch.cat(truth, dim=0)
+            truth_dt = torch.cat(truth_dt, dim=0)
         test_loss /= num_batches
-        return predictions, truth, test_loss
+        return predictions, truth, predictions_dt, truth_dt, test_loss
     
     # Test the model
-    predictions, truth, test_loss = test_loop(test_dataloader, model, loss_fn)
+    predictions, truth, predictions_dt, truth_dt, test_loss = test_loop(test_dataloader, model, loss_fn)
     print(f"Test Loss: {test_loss}")
 
     # Animate the results
-    # predictions = torch.fft.ifft(predictions, dim=1).detach().numpy()
-    # truth = torch.fft.ifft(truth, dim=1).detach().numpy()
-
     # Print min/max of real space data
     print(f"Min of truth: {truth.min()}")
     print(f"Max of truth: {truth.max()}")
@@ -105,8 +104,23 @@ def main():
 
     # Animate the results
     x = 32*np.pi*np.arange(1,N+1)/N
-    filename = 'spectral_kurasiv_1d_prediction_vs_truth'
-    utils.animate_prediction_vs_truth(x=x, predictions=predictions, truth=truth, save=False, filename=filename)
+    filename = 'spectral_kurasiv_1d_prediction_vs_truth_with_derivs'
+    utils.animate_prediction_vs_truth(
+        x=x, 
+        predictions=predictions, 
+        truth=truth,
+        save=False, 
+        filename=filename
+        )
+    
+    utils.animate_prediction_vs_truth(
+        x=x, 
+        predictions=predictions_dt, 
+        truth=truth_dt,
+        save=False, 
+        filename=filename
+    )
+    
     return
 
 if __name__ == "__main__":

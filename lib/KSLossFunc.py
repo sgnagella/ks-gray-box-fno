@@ -76,6 +76,35 @@ class KSL1RegRealMeanSquaredError(nn.Module):
         return torch.mean(err**2) + self.lam * torch.mean(torch.sqrt(coeffs**2 + eps))
     
 
+class KSL1RegRealDtMeanSquaredError(nn.Module):
+    """
+        Loss function for the Kuramoto-Sivashinsky gray-box model.
+        The loss function is the real-space mean squared error between the predicted
+        and true values with a regularization on the learned coefficients, also 
+        including time derivatives.
+    """
+    def __init__(self, lam=1e-3):
+        super(KSL1RegRealDtMeanSquaredError, self).__init__()
+        self.lam = lam
+
+    def forward(self, Pred, Y, coeffs):
+        """
+            Forward pass of the loss function.
+            Computes the mean squared error between the predicted and true values.
+            Inputs are real-valued predicted field and their true values.
+
+            Inputs:
+                Pred: torch.Tensor (2*batch_size, tspan, Nmodes), predicted solution and its time derivative
+                y: torch.Tensor (2*batch_size, tspan, Nmodes), true solution and its time derivative 
+        """
+        batch_size = Pred.size(0)//2
+        err = Pred - Y
+        weight = 1/5
+        err[batch_size:] = err[batch_size:] * weight
+        eps = 1e-10
+        return torch.mean(err**2) + self.lam * torch.mean(torch.sqrt(coeffs**2 + eps))
+    
+
 class KSL2RegRealMeanSquaredError(nn.Module):
     """
         Loss function for the Kuramoto-Sivashinsky gray-box model.
