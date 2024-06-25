@@ -52,7 +52,9 @@ def main():
 
     # Load the model 
     model = KSGrayBox.KSGrayBox(h=0.25, N=128, uscales=uscales, return_coeffs=True).to(device)
-    optimizer = optim.Adam(model.parameters(), lr=1e-3, betas=(0.9, 0.7), eps=1e-7, weight_decay=0, amsgrad=True)
+    lr = 1e-4; 1e-3
+    betas =  (0.9, 0.999); (0.9, 0.7)
+    optimizer = optim.Adam(model.parameters(), lr=lr, betas=betas, eps=1e-7, weight_decay=0, amsgrad=True)
     loss_fn = KSLossFunc.KSL1RegRealMeanSquaredError(lam=1e-2)
 
     # exit()
