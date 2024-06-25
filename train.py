@@ -23,7 +23,8 @@ def main():
     dirname = os.path.dirname(__file__)
     file = "ks_soln_ft_N_128_dt_0.25_tmax_1000.pt"
     filename = os.path.join(dirname, 'training_data', file)
-    dest_name = os.path.join(dirname, 'models', 'ks_model.pth')
+    dest_file = 'ks_model_v2.pth'; 'ks_model.pth'
+    dest_name = os.path.join(dirname, 'models', dest_file)
     info_dest_name = os.path.join(dirname, 'models', 'ks_model_info.pickle')
     if not os.path.exists(filename):
         raise FileNotFoundError(f"File {filename} not found.")
@@ -114,7 +115,7 @@ def main():
         test_loss /= num_batches
         return pred, test_loss
     
-    EPOCHS = 1000
+    EPOCHS = 2000
     PATIENCE = 150
     counter = 0
     best_loss = np.inf
