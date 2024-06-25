@@ -21,7 +21,7 @@ def main():
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     dirname = os.path.dirname(__file__)
-    file_model = "ks_model_v2.pth"; "ks_model.pth"; 
+    file_model = "ks_model_v3.pth"; "ks_model_v2.pth"; "ks_model.pth"; 
     pth_file = os.path.join(dirname, 'models', file_model)
     file = "ks_soln_ft_N_128_dt_0.25_tmax_1000.pt"
     filename = os.path.join(dirname, 'training_data', file)
@@ -42,7 +42,7 @@ def main():
 
     # Loss Function
     lam = 0; 1e-2
-    loss_fn = KSLossFunc.KSL1RegRealMeanSquaredError(lam=lam)
+    loss_fn = KSLossFunc.KSL2RegRealMeanSquaredError(lam=lam)
 
     # Get the scales from the test_data
     test_scales = test_data.uscales

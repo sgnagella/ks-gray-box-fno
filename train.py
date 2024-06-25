@@ -25,7 +25,7 @@ def main():
     dirname = os.path.dirname(__file__)
     file = "ks_soln_ft_N_128_dt_0.25_tmax_1000.pt"
     filename = os.path.join(dirname, 'training_data', file)
-    dest_file = 'ks_model_v2.pth'; 'ks_model.pth'; 
+    dest_file = 'ks_model_v3.pth'; 'ks_model_v2.pth'; 'ks_model.pth'; 
     dest_name = os.path.join(dirname, 'models', dest_file)
     info_dest_name = os.path.join(dirname, 'models', 'ks_model_info.pickle')
     if not os.path.exists(filename):
@@ -53,7 +53,7 @@ def main():
     betas =  (0.9, 0.7); (0.9, 0.999)
     optimizer = optim.Adam(model.parameters(), lr=lr, betas=betas, eps=1e-7, weight_decay=0, amsgrad=True)
     lam = 1e-2; 1e-1; 0
-    loss_fn = KSLossFunc.KSL1RegRealDtMeanSquaredError(lam=lam)
+    loss_fn = KSLossFunc.KSL2RegRealDtCorrWeightMeanSquaredError(lam=lam)
 
     # exit()
     def train_loop(_dataloader, _model, _loss_fn, _optimizer):
@@ -123,7 +123,7 @@ def main():
     PATIENCE = 150
     counter = 0
     best_loss = np.inf
-    checkpoint = False # continues training from the last checkpoint
+    checkpoint = True # continues training from the last checkpoint
     
     try:
         if os.path.isfile(dest_name) and checkpoint:

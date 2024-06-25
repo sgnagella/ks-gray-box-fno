@@ -29,6 +29,26 @@ FIG_WIDTH = 5 # inches
 FIG_HEIGHT = FIG_WIDTH/ASPECT_RATIO
 MARKEREDGEWIDTH = 1
 
+
+def compute_auto_correlation(*, data):
+    """
+        Computes the autocorrelation in the fourier coefficients of the data.
+        data: torch tensor of shape (Nbatch, tspan, Nmodes)
+        out: torch tensor of shape (Nbatch, tspan)
+    """
+
+    Nbatch = data.size(1)
+    tspan = data.size(2)
+    autocorr = torch.zeros((Nbatch, tspan))
+    shifts = torch.arange(tspan)
+
+    for ii, shift in enumerate(shifts): 
+        diffs = data[..., :-shift if shift else None] - data[..., shift:]
+        autocorr[..., ii] = torch.sum(torch.mean(torch.real(diffs*torch.conj(diffs)), dim=-1), dim=-1)
+
+    return autocorr
+
+
 def segment_data(*, data, nLengthTraj): 
     """
         Segment the data into trajectories of length nLengthTraj.
