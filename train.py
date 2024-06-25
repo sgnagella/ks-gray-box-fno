@@ -49,11 +49,11 @@ def main():
 
     # Load the model 
     model = KSGrayBox.KSGrayBox(h=0.25, N=128, uscales=uscales, return_coeffs=True).to(device)
-    lr = 1e-4; 1e-3
-    betas =  (0.9, 0.999); (0.9, 0.7)
+    lr = 1e-3; 1e-4
+    betas =  (0.9, 0.7); (0.9, 0.999)
     optimizer = optim.Adam(model.parameters(), lr=lr, betas=betas, eps=1e-7, weight_decay=0, amsgrad=True)
-    lam = 0; 1e-2
-    loss_fn = KSLossFunc.KSL1RegRealMeanSquaredError(lam=lam)
+    lam = 1e-2; 1e-1; 0
+    loss_fn = KSLossFunc.KSL1RegRealDtMeanSquaredError(lam=lam)
 
     # exit()
     def train_loop(_dataloader, _model, _loss_fn, _optimizer):
@@ -123,7 +123,7 @@ def main():
     PATIENCE = 150
     counter = 0
     best_loss = np.inf
-    checkpoint = False # continues training from the last checkpoint
+    checkpoint = True # continues training from the last checkpoint
     
     try:
         if os.path.isfile(dest_name) and checkpoint:
