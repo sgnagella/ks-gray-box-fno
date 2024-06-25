@@ -100,7 +100,8 @@ class KSL1RegRealDtMeanSquaredError(nn.Module):
         batch_size = Pred.size(0)//2
         err = Pred - Y
         weight = torch.ones(Pred.size(0))
-        weight[batch_size:] *= (1/50)
+        time_deriv_loss_weight = (1/40)
+        weight[batch_size:] *= time_deriv_loss_weight
         weight = weight[:, None, None] 
         # err[batch_size:] = err[batch_size:] * weight
         eps = 1e-10

@@ -25,7 +25,7 @@ def main():
     dirname = os.path.dirname(__file__)
     file = "ks_soln_ft_N_128_dt_0.25_tmax_1000.pt"
     filename = os.path.join(dirname, 'training_data', file)
-    dest_file = 'ks_model.pth'; 'ks_model_v2.pth'
+    dest_file = 'ks_model_v2.pth'; 'ks_model.pth'; 
     dest_name = os.path.join(dirname, 'models', dest_file)
     info_dest_name = os.path.join(dirname, 'models', 'ks_model_info.pickle')
     if not os.path.exists(filename):
