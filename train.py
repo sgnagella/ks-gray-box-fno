@@ -37,7 +37,7 @@ def main():
     traj = torch.load(filename)[1:].numpy()
     # traj_ifft = torch.fft.ifft(torch.tensor(traj/4.5), dim=-1).real.numpy()
     # print("min and max of training data: ", np.min(traj_ifft), np.max(traj_ifft))
-    traj_list, uscales = utils.segment_data(data=traj, nLengthTraj=10)
+    traj_list, uscales = utils.segment_data(data=traj, nLengthTraj=20)
     info = utils.generate_info_dict(train_ratio=0.6, val_ratio=0.2, traj_list=traj_list, uscales=uscales)
 
     # Create the dataset and dataloader
@@ -52,7 +52,7 @@ def main():
     # Load the model 
     model = KSGrayBox.KSGrayBox(h=0.25, N=128, uscales=uscales, return_coeffs=True).to(device)
     optimizer = optim.Adam(model.parameters(), lr=1e-3, betas=(0.9, 0.7), eps=1e-7, weight_decay=0, amsgrad=True)
-    loss_fn = KSLossFunc.KSL2RegRealMeanSquaredError(lam=1e-2)
+    loss_fn = KSLossFunc.KSL1RegRealMeanSquaredError(lam=1e-2)
 
     # exit()
     def train_loop(_dataloader, _model, _loss_fn, _optimizer):
