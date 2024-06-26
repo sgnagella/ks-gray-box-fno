@@ -125,7 +125,6 @@ class KSL1RegRealDtMeanSquaredError(nn.Module):
         time_deriv_loss_weight = Pred.size(1) # also multiply by number of time points to make it comparable to the real space loss
         weight[batch_size:] *= time_deriv_loss_weight
         weight = weight[:, None, None] 
-        # err[batch_size:] = err[batch_size:] * weight
         eps = 1e-10
 
         # Multiply by two because we are taking mean over Nbatch not 2*Nbatch

@@ -46,11 +46,10 @@ class ODEMLPFunc(nn.Module):
     """
         Class to define the ODE function in terms of the neural network (the MLP)
     """
-    def __init__(self, N, return_coeffs=False):
+    def __init__(self, N, n_embeddings=6, return_coeffs=False):
         super(ODEMLPFunc, self).__init__()
         hidden = 8
         output = 3
-        n_embeddings = 5
         self.mlp = MLP([n_embeddings*N, hidden, output])
         self.return_coeffs = return_coeffs
         self.coeffs = None
@@ -77,7 +76,7 @@ class SingleStep(nn.Module):
     """
         Class to define the single step of the RNN (ETD RK4 method for solving KS equation)
     """
-    def __init__(self, odefunc, N, h):
+    def __init__(self, odefunc, N, h, n_embeddings=6):
         super(SingleStep, self).__init__()
         self.odefunc = odefunc
 
@@ -115,19 +114,18 @@ class SingleStep(nn.Module):
         self.filter = filter
 
         # Store the old values of intermediate solutions
+        self.xold = None
         self.aold = None
-        self.aold1 = None
-        self.aold2 = None
-
         self.bold = None
-        self.bold1 = None
-        self.bold2 = None
-
         self.cold = None
-        self.cold1 = None
-        self.cold2 = None
 
         return
+
+    def update_xold(self, xold, xnew): 
+        for ii in range(len(xold)-1): 
+            xold[ii] = xold[ii+1].clone()
+        xold[-1] = xnew.clone()
+        return xold
 
     def return_feature_matrix(self,x): 
         # Takes input x in fourier space and returns real space feature matrix
@@ -155,55 +153,42 @@ class SingleStep(nn.Module):
 
         return x
     
-    def return_x_input(self, x, xold, xold1, xold2, xold3): 
-        out = ifft(torch.stack([x, xold, xold1, xold2, xold3]), dim=-1).real
+    def return_x_input(self, xold): 
+        out = ifft(torch.stack(xold), dim=-1).real
         out = torch.permute(out, (1,2,0,3))
         out = out.reshape(out.shape[0], out.shape[1], -1)
         # print(f"in KSGraybox.py return_x_input: out.size() = {out.size()}")
         return out
 
-    def forward(self, x, xold, xold1, xold2, xold3):
+    def nonlinear(self, xold, x): 
+        return self.g * fft(self.odefunc(0, self.return_x_input(xold), self.return_feature_matrix(x)), dim=-1).type(torch.complex64)
+
+    def forward(self, x):
         # Inputs to model are current state and past state in Fourier space
-        Nv = self.g * fft(self.odefunc(0, self.return_x_input(x, xold, xold1, xold2, xold3), self.return_feature_matrix(x)), dim=-1).type(torch.complex64)
-        
-        # self.aold = xold
-        # self.aold1 = xold1
+        Nv = self.nonlinear(self.xold, x)
 
         a = self.E2 * x + self.Q *  Nv
-        Na = self.g * fft(self.odefunc(0, self.return_x_input(a, self.aold, self.aold1, self.aold2, self.aold3), self.return_feature_matrix(a)), dim=-1).type(torch.complex64)
-        self.aold3 = self.aold2.clone()
-        self.aold2 = self.aold1.clone()
-        self.aold1 = self.aold.clone()
-        self.aold = a.clone()
-
-        # self.bold = self.aold
-        # self.bold1 = self.aold1
+        self.aold = self.update_xold(self.aold, a)
+        Na = self.nonlinear(self.aold, a)
 
         b = self.E2 * x + self.Q * Na
-        Nb = self.g * fft(self.odefunc(0, self.return_x_input(b, self.bold, self.bold1, self.bold2, self.bold3), self.return_feature_matrix(b)), dim=-1).type(torch.complex64)
-        self.bold3 = self.bold2.clone()
-        self.bold2 = self.bold1.clone()
-        self.bold1 = self.bold.clone()
-        self.bold = b.clone()
+        self.bold = self.update_xold(self.bold, b)
+        Nb = self.nonlinear(self.bold, b)
 
-        # self.cold = self.bold
-        # self.cold1 = self.bold1
         c = self.E2 * a + self.Q * (2 * Nb - Nv)
-        Nc = self.g * fft(self.odefunc(0, self.return_x_input(c, self.cold, self.cold1, self.cold2, self.cold3), self.return_feature_matrix(c)), dim=-1).type(torch.complex64)
-        self.cold3 = self.cold2.clone()
-        self.cold2 = self.cold1.clone()
-        self.cold1 = self.cold.clone()
-        self.cold = c.clone()
+        self.cold = self.update_xold(self.cold, c)
+        Nc = self.nonlinear(self.cold, c)
 
-        x1 = self.E * x + Nv * self.f1 + 2 * (Na + Nb) * self.f2 + Nc * self.f3
-        return x1
+        x = self.E * x + Nv * self.f1 + 2 * (Na + Nb) * self.f2 + Nc * self.f3
+        self.xold = self.update_xold(self.xold, x)
+        return x
     
 
 class MultiStep(nn.Module):
     """
         Wrapper class for the SingleStep class to apply the single step multiple times.    
     """
-    def __init__(self, N,h, uscales, return_coeffs=False):
+    def __init__(self, N,h, uscales, n_embeddings=6, return_coeffs=False):
         """
             Initialize the MultiStep class.
             Inputs:
@@ -213,40 +198,23 @@ class MultiStep(nn.Module):
                 return_coeffs: bool, whether to return the coefficients
         """
         super(MultiStep, self).__init__()
-        odefunc = ODEMLPFunc(N, return_coeffs=return_coeffs)
+        odefunc = ODEMLPFunc(N, n_embeddings, return_coeffs=return_coeffs)
         self.stepper = SingleStep(odefunc, N,h)
+        self.n_embeddings = n_embeddings
     
     def forward(self, x, steps):
         xs = []
         # Construct vector of current and past states in Fourier space
-        xold = x.clone()
-        xold1 = x.clone()
-        xold2 = x.clone()
-        xold3 = x.clone()
+        xold = [x.clone()]*(self.n_embeddings)
 
+        self.stepper.xold = xold
         self.stepper.aold = xold
-        self.stepper.aold1 = xold1
-        self.stepper.aold2 = xold2
-        self.stepper.aold3 = xold3
-
         self.stepper.bold = xold
-        self.stepper.bold1 = xold1
-        self.stepper.bold2 = xold2
-        self.stepper.bold3  = xold3
-
         self.stepper.cold = xold
-        self.stepper.cold1 = xold1
-        self.stepper.cold2 = xold2
-        self.stepper.cold3  = xold3
 
         for step in range(steps):
             t = self.stepper.h*step
-            xp = self.stepper(x, xold, xold1, xold2, xold3)
-            xold3 = xold2.clone()
-            xold2 = xold1.clone()
-            xold1  = xold.clone()
-            xold = x.clone()
-            x = xp
+            x = self.stepper(x)
             if step % int(1/self.stepper.h) == 0:
                 xs.append(x)
 
@@ -258,7 +226,7 @@ class KSGrayBox(nn.Module):
         Wrapper class for the MultiStep module
     """
 
-    def __init__(self, N,h, uscales, return_coeffs=False):
+    def __init__(self, N,h, uscales, n_embeddings=6, return_coeffs=False):
         """
             Initialize the KSGrayBox class.
             Inputs:
@@ -267,7 +235,7 @@ class KSGrayBox(nn.Module):
                 uscales: scales for the Fourier modes
         """
         super(KSGrayBox, self).__init__()
-        self.model = MultiStep(N,h, uscales, return_coeffs=return_coeffs)
+        self.model = MultiStep(N,h, uscales, n_embeddings, return_coeffs=return_coeffs)
 
     def return_coeffs(self): 
         return self.model.stepper.odefunc.coeffs
