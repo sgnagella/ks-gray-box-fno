@@ -46,7 +46,7 @@ def main():
 
     # Get the scales from the test_data
     test_scales = test_data.uscales
-    scale = 10
+    scale = 10; 4.5
 
     # Load the model in evaluation mode
     N = 128
