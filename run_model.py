@@ -33,7 +33,7 @@ def main():
 
     # Load the time series and segment it into smaller trajectories
     traj = torch.load(filename)[1:].numpy()
-    traj_list, uscales = utils.segment_data(data=traj, nLengthTraj=20)
+    traj_list, uscales = utils.segment_data(data=traj, nLengthTraj=10)
     info = utils.generate_info_dict(train_ratio=0.6, val_ratio=0.2, traj_list=traj_list, uscales=uscales)
 
     # Create the dataset and dataloader
@@ -41,7 +41,7 @@ def main():
     test_dataloader = DataLoader(test_data, batch_size=1)
 
     # Loss Function
-    lam = 1e-4; 0; 1e-2
+    lam = 6e-5; 1e-4; 0; 1e-2
     loss_fn = KSLossFunc.KSL1RegRealDtMeanSquaredError(lam=lam)
 
     # Get the scales from the test_data
