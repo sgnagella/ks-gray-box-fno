@@ -185,7 +185,9 @@ class KSL2RegRealDtCorrWeightMeanSquaredError(nn.Module):
         tspan = Pred.size(1)
         err = (Pred - Y)
         corr_weight = 10
-        weight = 1 - torch.exp( -(corr_weight * compute_auto_correlation(data=err[:batch_size])) )
+        steepness = 0.1
+        # weight = 1 - torch.exp( -(corr_weight * 1/compute_auto_correlation(data=err[:batch_size])) )
+        weight = corr_weight * torch.exp( - ( steepness * compute_auto_correlation(data=err[:batch_size] + 0.1) ** -1 ) )
         weight = torch.cat([torch.ones((batch_size, tspan)), weight], dim=0)
         # print(weight)
         # err[batch_size:] = err[batch_size:] * weight
