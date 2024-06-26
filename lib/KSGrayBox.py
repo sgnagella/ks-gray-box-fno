@@ -4,6 +4,15 @@ from torch.fft import fft, ifft
 from LegPoly import * 
 import numpy as np
 
+class Spline_Activation(nn.Module):
+    def __init__(self):
+        super(Spline_Activation, self).__init__()
+
+    def forward(self, x):
+        out1 = torch.min(torch.max(torch.zeros(x.size())-1,x) , torch.zeros(x.size()))
+        out2 = torch.min(-torch.min(torch.zeros(x.size())+1, x), torch.zeros(x.size())) 
+        return 1 + out1 + out2
+
 class MLP(nn.Module):
     """
         Class to define the neural network architecture for the ODE function.
@@ -13,7 +22,8 @@ class MLP(nn.Module):
         layers = []
         for ind in range(len(nn_dims) - 1):
             if ind != 0:
-                layers.append(nn.ReLU())
+                # layers.append(nn.ReLU())
+                layers.append(Spline_Activation())
             layers.append(nn.Linear(nn_dims[ind], nn_dims[ind + 1],
                                     dtype=torch.float32,
                                     bias=False))   

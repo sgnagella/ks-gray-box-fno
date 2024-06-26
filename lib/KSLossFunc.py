@@ -127,7 +127,11 @@ class KSL1RegRealDtMeanSquaredError(nn.Module):
         weight = weight[:, None, None] 
         # err[batch_size:] = err[batch_size:] * weight
         eps = 1e-10
-        return torch.mean(weight * err**2) + self.lam * torch.mean(torch.sqrt(coeffs**2 + eps))
+
+        # Multiply by two because we are taking mean over Nbatch not 2*Nbatch
+        # Stacking the solution and its time derivative is for convenience
+        # and we are actually computing two different losses 
+        return 2*torch.mean(weight * err**2) + self.lam * torch.mean(torch.sqrt(coeffs**2 + eps))
 
 class KSL2RegRealDtMeanSquaredError(nn.Module):
     """
