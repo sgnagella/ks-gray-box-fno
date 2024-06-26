@@ -9,8 +9,9 @@ class Spline_Activation(nn.Module):
         super(Spline_Activation, self).__init__()
 
     def forward(self, x):
-        out1 = torch.min(torch.max(torch.zeros(x.size())-1,x) , torch.zeros(x.size()))
-        out2 = torch.min(-torch.min(torch.zeros(x.size())+1, x), torch.zeros(x.size())) 
+        zeros = torch.zeros(x.size())
+        out1 = torch.min(torch.max(zeros-1,x) , zeros)
+        out2 = torch.min(-torch.min(zeros+1, x), zeros) 
         return 1 + out1 + out2
 
 class MLP(nn.Module):
