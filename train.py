@@ -120,10 +120,10 @@ def main():
         return pred, test_loss
     
     EPOCHS = 2000
-PATIENCE = 150
+    PATIENCE = 150
     counter = 0
     best_loss = np.inf
-    checkpoint = False # continues training from the last checkpoint
+    checkpoint = True # continues training from the last checkpoint
     
     try:
         if os.path.isfile(dest_name) and checkpoint:
