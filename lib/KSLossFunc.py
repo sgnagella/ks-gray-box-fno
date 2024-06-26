@@ -120,8 +120,9 @@ class KSL1RegRealDtMeanSquaredError(nn.Module):
         """
         batch_size = Pred.size(0)//2
         err = Pred - Y
-        weight = torch.ones(Pred.size(0))
-        time_deriv_loss_weight = 1/30
+        relative_weight  = 0.6
+        weight = relative_weight * torch.ones(Pred.size(0))
+        time_deriv_loss_weight = 1 - relative_weight 
         weight[batch_size:] *= time_deriv_loss_weight
         weight = weight[:, None, None] 
         # err[batch_size:] = err[batch_size:] * weight
@@ -152,7 +153,7 @@ class KSL2RegRealDtMeanSquaredError(nn.Module):
         batch_size = Pred.size(0)//2
         err = Pred - Y
         weight = torch.ones(Pred.size(0))
-        time_deriv_loss_weight = 1/30
+        time_deriv_loss_weight = 10
         weight[batch_size:] *= time_deriv_loss_weight
         weight = weight[:, None, None] 
         # err[batch_size:] = err[batch_size:] * weight
@@ -187,7 +188,8 @@ class KSL2RegRealDtCorrWeightMeanSquaredError(nn.Module):
         corr_weight = 10
         steepness = 0.1
         # weight = 1 - torch.exp( -(corr_weight * 1/compute_auto_correlation(data=err[:batch_size])) )
-        weight = corr_weight * torch.exp( - ( steepness * compute_auto_correlation(data=err[:batch_size]) + 0.1 )**-1 )
+        # weight = corr_weight * torch.exp( - ( steepness * compute_auto_correlation(data=err[:batch_size]) + 0.1 )**-1 )
+        weight = corr_weight * torch.ones((batch_size, tspan))
         weight = torch.cat([torch.ones((batch_size, tspan)), weight], dim=0)
         # print(weight)
         # err[batch_size:] = err[batch_size:] * weight

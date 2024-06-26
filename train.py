@@ -53,7 +53,7 @@ def main():
     betas =  (0.9, 0.7); (0.9, 0.999)
     optimizer = optim.Adam(model.parameters(), lr=lr, betas=betas, eps=1e-7, weight_decay=0, amsgrad=True)
     lam = 1e-2; 1e-1; 0
-    loss_fn = KSLossFunc.KSL2RegRealDtCorrWeightMeanSquaredError(lam=lam)
+    loss_fn = KSLossFunc.KSL1RegRealDtMeanSquaredError(lam=lam)
 
     # exit()
     def train_loop(_dataloader, _model, _loss_fn, _optimizer):
