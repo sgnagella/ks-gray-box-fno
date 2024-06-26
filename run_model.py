@@ -41,7 +41,7 @@ def main():
     test_dataloader = DataLoader(test_data, batch_size=1)
 
     # Loss Function
-    lam = 1e-2; 0
+    lam = 1e-4; 0; 1e-2
     loss_fn = KSLossFunc.KSL1RegRealDtMeanSquaredError(lam=lam)
 
     # Get the scales from the test_data

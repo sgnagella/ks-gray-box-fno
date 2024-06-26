@@ -52,7 +52,7 @@ def main():
     lr = 1e-3; 1e-4
     betas =  (0.9, 0.7); (0.9, 0.999)
     optimizer = optim.Adam(model.parameters(), lr=lr, betas=betas, eps=1e-7, weight_decay=0, amsgrad=True)
-    lam = 1e-2; 1e-1; 0
+    lam = 1e-4; 1e-2; 1e-1
     loss_fn = KSLossFunc.KSL1RegRealDtMeanSquaredError(lam=lam)
 
     # exit()
@@ -123,7 +123,7 @@ def main():
     PATIENCE = 150
     counter = 0
     best_loss = np.inf
-    checkpoint = False # continues training from the last checkpoint
+    checkpoint = True # continues training from the last checkpoint
     
     try:
         if os.path.isfile(dest_name) and checkpoint:
