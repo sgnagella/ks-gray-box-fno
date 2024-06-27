@@ -50,7 +50,7 @@ def main():
 
     # Load the model in evaluation mode
     N = 128
-    model = KSGrayBox.KSGrayBox(h=0.25, N=N, uscales=uscales, return_coeffs=True).to(device)
+    model = KSGrayBox.KSGrayBox(h=0.25, N=N, uscales=uscales, n_embeddings=5, return_coeffs=True).to(device)
     model.load_state_dict(torch.load(pth_file))
     model.eval()
 
