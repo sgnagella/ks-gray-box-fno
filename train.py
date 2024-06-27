@@ -49,7 +49,7 @@ def main():
 
     # Load the model 
     model = KSGrayBox.KSGrayBox(h=0.25, N=128, uscales=uscales, n_embeddings=5, return_coeffs=True).to(device)
-    lr = 1e-3; 1e-4
+    lr = 1e-2; 1e-3; 1e-4
     betas =  (0.9, 0.7); (0.9, 0.999)
     optimizer = optim.Adam(model.parameters(), lr=lr, betas=betas, eps=1e-7, weight_decay=0, amsgrad=True)
     lam = 6e-5; 1e-4; 1e-2; 1e-1
