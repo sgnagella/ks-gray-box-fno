@@ -49,7 +49,7 @@ class ODEMLPFunc(nn.Module):
     def __init__(self, N, n_embeddings=6, return_coeffs=False):
         super(ODEMLPFunc, self).__init__()
         hidden = 8
-        output = 3
+        output = 4
         self.mlp = MLP([n_embeddings*N, hidden, output])
         self.return_coeffs = return_coeffs
         self.coeffs = None
@@ -141,7 +141,7 @@ class SingleStep(nn.Module):
             LegendrePolynomial1.apply(xreal),
             LegendrePolynomial2.apply(xreal), 
             # LegendrePolynomial4.apply(xreal),
-            # LegendrePolynomial3.apply(xreal)
+            LegendrePolynomial3.apply(xreal)
             ]).type(torch.float32)
         
         # print(f"in KSGraybox.py return_feature_matrix: x.max = {torch.max(x)}, x.min = {torch.min(x)}")
