@@ -46,11 +46,12 @@ class ODEMLPFunc(nn.Module):
     """
         Class to define the ODE function in terms of the neural network (the MLP)
     """
-    def __init__(self, N, n_embeddings=6, return_coeffs=False):
+    def __init__(self, n_modes, n_embeddings=6, return_coeffs=False):
         super(ODEMLPFunc, self).__init__()
         hidden = 8
         output = 4
-        self.mlp = MLP([n_embeddings*N, hidden, output])
+        self.n_modes = n_modes
+        self.mlp = MLP([n_embeddings*n_modes, hidden, output])
         self.return_coeffs = return_coeffs
         self.coeffs = None
      
@@ -76,7 +77,7 @@ class SingleStep(nn.Module):
     """
         Class to define the single step of the RNN (ETD RK4 method for solving KS equation)
     """
-    def __init__(self, odefunc, N, h, n_embeddings=6):
+    def __init__(self, odefunc, N, h):
         super(SingleStep, self).__init__()
         self.odefunc = odefunc
 
@@ -155,8 +156,14 @@ class SingleStep(nn.Module):
     
     def return_x_input(self, xold): 
         out = ifft(torch.stack(xold), dim=-1).real
+        out = torch.stack(xold)
         out = torch.permute(out, (1,2,0,3))
-        out = out.reshape(out.shape[0], out.shape[1], -1)
+
+        # Compute the SVD of the input data on the last two dimensions
+        U, S, Vh = torch.linalg.svd(out, full_matrices=False)
+        Vh = Vh.mH[..., :self.odefunc.n_modes]              # size(batch_size, 1, N, n_modes)
+        out = torch.matmul(out, Vh)                         # size(batch_size, time, n_embeddings, n_modes)
+        out = out.reshape(out.shape[0], out.shape[1], -1)   # size(batch_size, time, n_embeddings*n_modes)
         # print(f"in KSGraybox.py return_x_input: out.size() = {out.size()}")
         return out
 
@@ -188,7 +195,7 @@ class MultiStep(nn.Module):
     """
         Wrapper class for the SingleStep class to apply the single step multiple times.    
     """
-    def __init__(self, N,h, uscales, n_embeddings=6, return_coeffs=False):
+    def __init__(self, N,h, uscales, n_embeddings=6, n_modes=5, return_coeffs=False):
         """
             Initialize the MultiStep class.
             Inputs:
@@ -198,7 +205,7 @@ class MultiStep(nn.Module):
                 return_coeffs: bool, whether to return the coefficients
         """
         super(MultiStep, self).__init__()
-        odefunc = ODEMLPFunc(N, n_embeddings, return_coeffs=return_coeffs)
+        odefunc = ODEMLPFunc(N, n_modes, n_embeddings=n_embeddings, return_coeffs=return_coeffs)
         self.stepper = SingleStep(odefunc, N,h)
         self.n_embeddings = n_embeddings
     
@@ -226,7 +233,7 @@ class KSGrayBox(nn.Module):
         Wrapper class for the MultiStep module
     """
 
-    def __init__(self, N,h, uscales, n_embeddings=6, return_coeffs=False):
+    def __init__(self, N,h, uscales, n_embeddings=6, n_modes=5, return_coeffs=False):
         """
             Initialize the KSGrayBox class.
             Inputs:
@@ -235,7 +242,7 @@ class KSGrayBox(nn.Module):
                 uscales: scales for the Fourier modes
         """
         super(KSGrayBox, self).__init__()
-        self.model = MultiStep(N,h, uscales, n_embeddings, return_coeffs=return_coeffs)
+        self.model = MultiStep(N,h, uscales, n_embeddings, n_modes, return_coeffs=return_coeffs)
 
     def return_coeffs(self): 
         return self.model.stepper.odefunc.coeffs
