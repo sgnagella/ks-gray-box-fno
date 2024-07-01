@@ -156,16 +156,18 @@ class SingleStep(nn.Module):
     
     def return_x_input(self, xold): 
         out = ifft(torch.stack(xold), dim=-1).real
-        out = torch.stack(xold)
         out = torch.permute(out, (1,2,0,3))
+        # print(f"in KSGraybox.py return_x_input: out.dtype: {out.dtype}")
 
         # Compute the SVD of the input data on the last two dimensions
         U, S, Vh = torch.linalg.svd(out, full_matrices=False)
-        Vh = Vh.mH[..., :self.odefunc.n_modes]              # size(batch_size, 1, N, n_modes)
+        sbatch_max = torch.max(S, dim=-1).values.unsqueeze(-1)
+        # print(f"in KSGraybox.py return_x_input: sbatch_max.size() = \n {sbatch_max, sbatch_max.size()} \n")
+        Vh = Vh.mT[..., :self.odefunc.n_modes]              # size(batch_size, 1, N, n_modes)
         out = torch.matmul(out, Vh)                         # size(batch_size, time, n_embeddings, n_modes)
         out = out.reshape(out.shape[0], out.shape[1], -1)   # size(batch_size, time, n_embeddings*n_modes)
-        # print(f"in KSGraybox.py return_x_input: out.size() = {out.size()}")
-        return out
+        # print(f"in KSGraybox.py return_x_input: out.size() = {out.size(), out.dtype}")
+        return out / sbatch_max
 
     def nonlinear(self, xold, x): 
         return self.g * fft(self.odefunc(0, self.return_x_input(xold), self.return_feature_matrix(x)), dim=-1).type(torch.complex64)
@@ -205,7 +207,7 @@ class MultiStep(nn.Module):
                 return_coeffs: bool, whether to return the coefficients
         """
         super(MultiStep, self).__init__()
-        odefunc = ODEMLPFunc(N, n_modes, n_embeddings=n_embeddings, return_coeffs=return_coeffs)
+        odefunc = ODEMLPFunc(n_modes, n_embeddings=n_embeddings, return_coeffs=return_coeffs)
         self.stepper = SingleStep(odefunc, N,h)
         self.n_embeddings = n_embeddings
     
