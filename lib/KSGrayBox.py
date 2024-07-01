@@ -163,9 +163,9 @@ class SingleStep(nn.Module):
         U, S, Vh = torch.linalg.svd(out, full_matrices=False)
         sbatch_max = torch.max(S, dim=-1).values.unsqueeze(-1)
         # print(f"in KSGraybox.py return_x_input: sbatch_max.size() = \n {sbatch_max, sbatch_max.size()} \n")
-        Vh = Vh.mT[..., :self.odefunc.n_modes]              # size(batch_size, 1, N, n_modes)
-        out = torch.matmul(out, Vh)                         # size(batch_size, time, n_embeddings, n_modes)
-        out = out.reshape(out.shape[0], out.shape[1], -1)   # size(batch_size, time, n_embeddings*n_modes)
+        Vh = Vh.mT[..., :self.odefunc.n_modes]              # size(batch_size, time=1, N, n_modes)
+        out = torch.matmul(out, Vh)                         # size(batch_size, time=1, n_embeddings, n_modes)
+        out = out.reshape(out.shape[0], out.shape[1], -1)   # size(batch_size, time=1, n_embeddings*n_modes)
         # print(f"in KSGraybox.py return_x_input: out.size() = {out.size(), out.dtype}")
         return out / sbatch_max
 
