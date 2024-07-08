@@ -170,23 +170,25 @@ class SingleStep(nn.Module):
         return out / sbatch_max
 
     def nonlinear(self, xold, x): 
-        return self.g * fft(self.odefunc(0, self.return_x_input(xold), self.return_feature_matrix(x)), dim=-1).type(torch.complex64)
+        # return self.g * fft(self.odefunc(0, self.return_x_input(xold), self.return_feature_matrix(x)), dim=-1).type(torch.complex64)
+        return fft(self.odefunc(0, self.return_x_input(xold), self.return_feature_matrix(x)), dim=-1).type(torch.complex64)
+
 
     def forward(self, x):
         # Inputs to model are current state and past state in Fourier space
-        Nv = self.nonlinear(self.xold, x)
+        Nv = self.g * self.nonlinear(self.xold, x)
 
         a = self.E2 * x + self.Q *  Nv
         self.aold = self.update_xold(self.aold, a)
-        Na = self.nonlinear(self.aold, a)
+        Na = self.g * self.nonlinear(self.aold, a)
 
         b = self.E2 * x + self.Q * Na
         self.bold = self.update_xold(self.bold, b)
-        Nb = self.nonlinear(self.bold, b)
+        Nb = self.g * self.nonlinear(self.bold, b)
 
         c = self.E2 * a + self.Q * (2 * Nb - Nv)
         self.cold = self.update_xold(self.cold, c)
-        Nc = self.nonlinear(self.cold, c)
+        Nc = self.g * self.nonlinear(self.cold, c)
 
         x = self.E * x + Nv * self.f1 + 2 * (Na + Nb) * self.f2 + Nc * self.f3
         self.xold = self.update_xold(self.xold, x)
@@ -197,7 +199,7 @@ class MultiStep(nn.Module):
     """
         Wrapper class for the SingleStep class to apply the single step multiple times.    
     """
-    def __init__(self, N,h, uscales, n_embeddings=6, n_modes=5, return_coeffs=False):
+    def __init__(self, N,h, uscales, n_embeddings=6, n_modes=5, return_coeffs=False, output_nonlinear=False):
         """
             Initialize the MultiStep class.
             Inputs:
@@ -210,9 +212,11 @@ class MultiStep(nn.Module):
         odefunc = ODEMLPFunc(n_modes, n_embeddings=n_embeddings, return_coeffs=return_coeffs)
         self.stepper = SingleStep(odefunc, N,h)
         self.n_embeddings = n_embeddings
+        self.output_nonlinear = output_nonlinear
     
     def forward(self, x, steps):
         xs = []
+        nonlinear = []
         # Construct vector of current and past states in Fourier space
         xold = [x.clone()]*(self.n_embeddings)
 
@@ -226,8 +230,14 @@ class MultiStep(nn.Module):
             x = self.stepper(x)
             if step % int(1/self.stepper.h) == 0:
                 xs.append(x)
+                if self.output_nonlinear:
+                    with torch.no_grad():
+                        nonlinear.append(self.stepper.nonlinear(self.stepper.xold, x))
 
         # Concatenate along the time axis (dim=1)
+        if self.output_nonlinear:
+            return torch.cat(xs, dim=1), torch.cat(nonlinear, dim=1)
+        
         return torch.cat(xs, dim=1)
     
 class KSGrayBox(nn.Module): 
@@ -235,7 +245,7 @@ class KSGrayBox(nn.Module):
         Wrapper class for the MultiStep module
     """
 
-    def __init__(self, N,h, uscales, n_embeddings=6, n_modes=5, return_coeffs=False):
+    def __init__(self, N,h, uscales, n_embeddings=6, n_modes=5, return_coeffs=False, output_nonlinear=False):
         """
             Initialize the KSGrayBox class.
             Inputs:
@@ -244,7 +254,7 @@ class KSGrayBox(nn.Module):
                 uscales: scales for the Fourier modes
         """
         super(KSGrayBox, self).__init__()
-        self.model = MultiStep(N,h, uscales, n_embeddings, n_modes, return_coeffs=return_coeffs)
+        self.model = MultiStep(N,h, uscales, n_embeddings, n_modes, return_coeffs=return_coeffs, output_nonlinear=output_nonlinear)
 
     def return_coeffs(self): 
         return self.model.stepper.odefunc.coeffs

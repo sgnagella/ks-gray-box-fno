@@ -192,8 +192,8 @@ def animate_prediction_vs_truth(*, x, predictions, truth, save=False, filename=N
     # Create a figure and axis for the animation
     plt.close('all')
     fig, ax = plt.subplots(num=1, clear=True)
-    l1 = ax.plot(x, predictions[0], lw=2, color='blue', label='Prediction')
-    l2 = ax.plot(x, truth[0], lw=2, color='red', label='Truth')
+    l1 = ax.plot(x, predictions[0], ls='-', lw=2, color='blue', label='Prediction')
+    l2 = ax.plot(x, truth[0], ls='--', lw=2, color='red', label='Truth')
 
     if predictions_dt is not None and truth_dt is not None:
         l3 = ax.plot(x, predictions_dt[0], lw=2, color='blue', linestyle='--', label='Prediction (dt)')
@@ -211,6 +211,59 @@ def animate_prediction_vs_truth(*, x, predictions, truth, save=False, filename=N
 
     # Animation update function
     def update(frame):
+        l1[0].set_ydata(predictions[frame])
+        l2[0].set_ydata(truth[frame])
+
+        if predictions_dt is not None and truth_dt is not None:
+            l3[0].set_ydata(predictions_dt[frame])
+            l4[0].set_ydata(truth_dt[frame])
+
+        # Update the timer
+        timer_text.set_text(r'$\tau = {}$'.format(frame))
+        
+        return ax,
+
+    # Create and display the animation
+    ani = FuncAnimation(fig, update, frames=predictions.shape[0], blit=False, interval=250)
+    if save:
+        os.makedirs('figures', exist_ok=True)
+        if '.gif' in filename.split('.'):
+            filename = filename.split('.')[0]
+        ani.save(os.path.join('figures', filename + '.gif'), dpi=200, writer='pillow')
+    
+    plt.show()
+    return None
+
+def animate_prediction_vs_truth_vary_x(*, x, predictions, truth, save=False, filename=None, predictions_dt=None, truth_dt=None):
+    """ Animate the results of the predictions.
+        Use this code in the case of time-varying x.
+    """
+
+    # Create a figure and axis for the animation
+    plt.close('all')
+    fig, ax = plt.subplots(num=1, clear=True)
+    l1 = ax.plot(x[0], predictions[0], marker='.', ls='none', color='blue', label='Prediction')
+    l2 = ax.plot(x[0], truth[0], marker='.', ls='none', color='red', label='Truth')
+
+    if predictions_dt is not None and truth_dt is not None:
+        l3 = ax.plot(x, predictions_dt[0], lw=2, color='blue', linestyle='--', label='Prediction (dt)')
+        l4 = ax.plot(x, truth_dt[0], lw=2, color='red', linestyle='--', label='Truth (dt)')
+
+    # ax.set_xlim(x[0], x[-1])
+    ax.set_xlim(-3, 3)
+    ax.set_ylim(-5, 0)
+    ax.set_xlabel('x')
+    ax.set_ylabel('u(x)')
+    ax.legend(loc='upper right')
+    ax.grid(True)
+
+    # Create a text object for the timer
+    timer_text = ax.text(0.15, 0.95, '', transform=ax.transAxes, ha='right', va='top', fontsize=12, color='black')
+
+    # Animation update function
+    def update(frame):
+        l1[0].set_xdata(x[frame])
+        l2[0].set_xdata(x[frame])
         l1[0].set_ydata(predictions[frame])
         l2[0].set_ydata(truth[frame])
 

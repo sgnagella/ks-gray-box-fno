@@ -9,7 +9,10 @@ import sys
 sys.path.append('util/')
 sys.path.append('lib/')
 from util import utils
+import importlib
+importlib.reload(utils)
 from lib import KSDataset, KSGrayBox, KSLossFunc
+importlib.reload(KSGrayBox)
 import os
 import pickle
 from time import time
@@ -50,7 +53,7 @@ def main():
 
     # Load the model in evaluation mode
     N = 128
-    model = KSGrayBox.KSGrayBox(h=0.25, N=N, uscales=uscales, n_embeddings=8, n_modes=5, return_coeffs=True).to(device)
+    model = KSGrayBox.KSGrayBox(h=0.25, N=N, uscales=uscales, n_embeddings=8, n_modes=5, return_coeffs=True, output_nonlinear=True).to(device)
     model.load_state_dict(torch.load(pth_file))
     model.eval()
 
@@ -58,6 +61,7 @@ def main():
         size = len(_dataloader.dataset)
         num_batches = len(_dataloader)
         test_loss = 0
+        nonlinear_pred = []
         predictions = []
         predictions_dt = []
         truth = []
@@ -69,8 +73,9 @@ def main():
                 Y = torch.cat([y, ydt], dim=0)
                 ydt = ydt.to(device)
                 y = y.to(device)
-                pred = _model(y0, steps=y.size(1))
+                pred, nonlinear = _model(y0, steps=y.size(1))
                 pred = torch.fft.ifft(pred, dim=-1).real
+                nonlinear = torch.fft.ifft(nonlinear, dim=-1).real
                 pred_dt = NaturalCubicSpline(natural_cubic_spline_coeffs(times, pred)).derivative(times)
 
                 # Rescale output for visualization
@@ -78,6 +83,7 @@ def main():
                 predictions_dt.append(pred_dt.squeeze() * scale)
                 truth.append(y.squeeze() * scale)
                 truth_dt.append(ydt.squeeze() * scale)
+                nonlinear_pred.append(nonlinear.squeeze())
 
                 pred = torch.cat([pred, pred_dt], dim=0)
                 coeffs = _model.return_coeffs()
@@ -88,11 +94,13 @@ def main():
             predictions_dt = torch.cat(predictions_dt, dim=0)
             truth = torch.cat(truth, dim=0)
             truth_dt = torch.cat(truth_dt, dim=0)
+            nonlinear_pred = torch.cat(nonlinear_pred, dim=0)
+
         test_loss /= num_batches
-        return predictions, truth, predictions_dt, truth_dt, test_loss
+        return predictions, truth, predictions_dt, truth_dt, nonlinear_pred, test_loss
     
     # Test the model
-    predictions, truth, predictions_dt, truth_dt, test_loss = test_loop(test_dataloader, model, loss_fn)
+    predictions, truth, predictions_dt, truth_dt, nonlinear_pred, test_loss = test_loop(test_dataloader, model, loss_fn)    
     print(f"Test Loss: {test_loss}")
 
     # Animate the results
@@ -104,21 +112,35 @@ def main():
 
     # Animate the results
     x = 32*np.pi*np.arange(1,N+1)/N
-    filename = 'spectral_kurasiv_1d_prediction_vs_truth_with_derivs'
+    filename_soln = 'spectral_kurasiv_1d_prediction_vs_truth'
+    filename_deriv = 'spectral_kurasiv_1d_prediction_vs_truth_dt'
+    filename_nonlinear = 'spectral_kurasiv_1d_prediction_vs_truth_nonlinear'
+
+    # Animate the solution, u(x,t)
     utils.animate_prediction_vs_truth(
         x=x, 
         predictions=predictions, 
         truth=truth,
-        save=False, 
-        filename=filename
+        save=True, 
+        filename=filename_soln
         )
-    
+
+    # Animate the time derivative, du/dt
     utils.animate_prediction_vs_truth(
         x=x, 
         predictions=predictions_dt, 
         truth=truth_dt,
-        save=False, 
-        filename=filename
+        save=True, 
+        filename=filename_deriv
+    )
+
+    # Animate the nonlinear term N(u)
+    utils.animate_prediction_vs_truth_vary_x(
+        x=(predictions/scale), 
+        predictions=nonlinear_pred, 
+        truth=torch.full(nonlinear_pred.size(), float('nan')),
+        save=True, 
+        filename=filename_nonlinear
     )
     
     return
