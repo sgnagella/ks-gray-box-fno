@@ -23,7 +23,7 @@ def main():
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     dirname = os.path.dirname(__file__)
-    file = "ks_soln_ft_N_128_dt_0.25_tmax_1000.pt"
+    file = "ks_soln_ft_N_128_dt_0.25_tmax_1000_noise=True_sigma=0.1.pt"
     filename = os.path.join(dirname, 'training_data', file)
     dest_file = 'ks_model_v3.pth'; 'ks_model_v2.pth'; 'ks_model.pth'; 
     dest_name = os.path.join(dirname, 'models', dest_file)
@@ -35,7 +35,7 @@ def main():
     # Load the time series and segment it into smaller trajectories
 
     traj = torch.load(filename)[1:].numpy()
-    traj_list, uscales = utils.segment_data(data=traj, nLengthTraj=10)
+    traj_list, uscales = utils.segment_data(data=traj, nLengthTraj=5)
     info = utils.generate_info_dict(train_ratio=0.6, val_ratio=0.2, traj_list=traj_list, uscales=uscales)
 
     # Create the dataset and dataloader

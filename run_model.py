@@ -42,7 +42,7 @@ def main():
     # Load the time series and segment it into smaller trajectories
     traj = torch.load(filename)[1:].numpy()
     traj_list, uscales = utils.segment_data(data=traj, nLengthTraj=10)
-    info = utils.generate_info_dict(train_ratio=0.6, val_ratio=0.2, traj_list=traj_list, uscales=uscales)
+    info = utils.generate_info_dict(train_ratio=0.6, val_ratio=0.1, traj_list=traj_list, uscales=uscales)
 
     # Create the dataset and dataloader
     test_data = KSDataset.KSDataset(info=info, train_key="train", set_type="test")
