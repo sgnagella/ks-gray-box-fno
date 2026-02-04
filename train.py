@@ -43,58 +43,73 @@ def main():
     val_data = KSDataset.KSDataset(info=info, train_key="train", set_type="val")
     test_data = KSDataset.KSDataset(info=info, train_key="train", set_type="test")
 
-    train_dataloader = DataLoader(train_data, batch_size=5, num_workers=8, shuffle=True)
-    val_dataloader = DataLoader(val_data, batch_size=5, num_workers=4)
-    test_dataloader = DataLoader(test_data, batch_size=1)
+    train_dataloader = DataLoader(train_data, batch_size=5, num_workers=8, shuffle=True, pin_memory=True)
+    val_dataloader = DataLoader(val_data, batch_size=5, num_workers=4, pin_memory=True)
+    test_dataloader = DataLoader(test_data, batch_size=1, pin_memory=True)
 
     # Load the model 
-    model = KSGrayBox.KSGrayBox(h=0.25, N=128, uscales=uscales, n_embeddings=8, n_modes=5, return_coeffs=True).to(device)
+    model = KSGrayBox.KSGrayBox(
+        h=0.25, 
+        N=128, 
+        uscales=uscales, 
+        n_embeddings=8, 
+        n_modes=5, 
+        return_coeffs=True, 
+        device=device,
+        output_nonlinear=False).to(device)
     lr = 1e-2; 1e-3; 1e-4
     betas =  (0.9, 0.7); (0.9, 0.999)
     optimizer = optim.Adam(model.parameters(), lr=lr, betas=betas, eps=1e-7, weight_decay=0, amsgrad=True)
-    lam = 6e-5; 1e-4; 1e-2; 1e-1
+    lam = 0; 6e-5; 1e-4; 1e-2; 1e-1
     loss_fn = KSLossFunc.KSL1RegRealDtMeanSquaredError(lam=lam)
 
     # exit()
     def train_loop(_dataloader, _model, _loss_fn, _optimizer):
         size = len(_dataloader.dataset)
-        times = torch.arange(_dataloader.dataset.useq.size(1)).type(torch.float32)
+        num_batches = len(_dataloader)
+        times = torch.arange(_dataloader.dataset.useq.size(1), dtype=torch.float32, device=device)
+        train_loss = 0.0
         for y0, Y in _dataloader:
-            # Compute prediction and loss
+            # move inputs to device
+            y0 = y0.to(device)
             y, ydt = Y
-            Y = torch.cat([y, ydt], dim=0)
-            ydt = ydt.to(device)
             y = y.to(device)
+            ydt = ydt.to(device)
+            # Compute prediction and loss
+            Y = torch.cat([y, ydt], dim=0)
             pred = _model(y0, steps=y.size(1))
             pred = torch.fft.ifft(pred, dim=-1).real
             pred_dt = NaturalCubicSpline(natural_cubic_spline_coeffs(times, pred)).derivative(times)
             pred = torch.cat([pred, pred_dt], dim=0)
-            
-            loss = loss_fn(pred, Y, _model.return_coeffs())
+            loss = _loss_fn(pred, Y, _model.return_coeffs())
+            train_loss += loss.item()
 
             # Backpropagation
             _optimizer.zero_grad()
             loss.backward()
             _optimizer.step()
 
-        return
+        train_loss /= num_batches
+        print(f"train_loss: {train_loss:.3e}")
+        return train_loss
 
     def val_loop(_dataloader, _model, _loss_fn):
         size = len(_dataloader.dataset)
         num_batches = len(_dataloader)
         val_loss = 0
-        times = torch.arange(_dataloader.dataset.useq.size(1)).type(torch.float32)
+        times = torch.arange(_dataloader.dataset.useq.size(1), dtype=torch.float32, device=device)
         with torch.no_grad():
             for y0, Y in _dataloader:
+                # move inputs to device
+                y0 = y0.to(device)
                 y, ydt = Y
-                Y = torch.cat([y, ydt], dim=0)
-                ydt = ydt.to(device)
                 y = y.to(device)
+                ydt = ydt.to(device)
+                Y = torch.cat([y, ydt], dim=0)
                 pred = _model(y0, steps=y.size(1))
                 pred = torch.fft.ifft(pred, dim=-1).real
                 pred_dt = NaturalCubicSpline(natural_cubic_spline_coeffs(times, pred)).derivative(times)
                 pred = torch.cat([pred, pred_dt], dim=0)
-
                 val_loss += _loss_fn(pred, Y, _model.return_coeffs()).item()
         val_loss /= num_batches
         print(f"val_loss: {val_loss:.3e}")
@@ -104,17 +119,19 @@ def main():
         size = len(_dataloader.dataset)
         num_batches = len(_dataloader)
         test_loss = 0
-        times = torch.arange(_dataloader.dataset.useq.size(1)).type(torch.float32)
+        times = torch.arange(_dataloader.dataset.useq.size(1), dtype=torch.float32, device=device)
         with torch.no_grad():
             for y0, Y in _dataloader:
+                # move inputs to device
+                y0 = y0.to(device)
                 y, ydt = Y
-                Y = torch.cat([y, ydt], dim=0)
                 y = y.to(device)
+                ydt = ydt.to(device)
+                Y = torch.cat([y, ydt], dim=0)
                 pred = _model(y0, steps=y.size(1))
                 pred = torch.fft.ifft(pred, dim=-1).real
                 pred_dt = NaturalCubicSpline(natural_cubic_spline_coeffs(times, pred)).derivative(times)
                 pred = torch.cat([pred, pred_dt], dim=0)
-
                 test_loss += _loss_fn(pred, Y, _model.return_coeffs()).item()
         test_loss /= num_batches
         return pred, test_loss
@@ -123,7 +140,7 @@ def main():
     PATIENCE = 150
     counter = 0
     best_loss = np.inf
-    checkpoint = True # continues training from the last checkpoint
+    checkpoint = False # continues training from the last checkpoint
     
     try:
         if os.path.isfile(dest_name) and checkpoint:
@@ -131,10 +148,15 @@ def main():
             print("Model loaded to continue training.")
 
         toc = time()
+        # record training history
+        history = {'train_loss': [], 'val_loss': []}
+
         for t in range(EPOCHS):
             print(f"Epoch {t + 1}\n-------------------------------")
-            train_loop(train_dataloader, model, loss_fn, optimizer)
+            train_loss = train_loop(train_dataloader, model, loss_fn, optimizer)
             val_loss = val_loop(val_dataloader, model, loss_fn)
+            history['train_loss'].append(train_loss)
+            history['val_loss'].append(val_loss)
             counter += 1
             if val_loss < best_loss:
                 best_loss = val_loss
@@ -152,7 +174,7 @@ def main():
         test_predictions, test_loss = test_loop(test_dataloader, model, loss_fn)
         train_time = tic - toc
         info = dict(test_predictions=test_predictions, test_loss=test_loss,
-                    train_time=train_time, model_state_dict=model.state_dict())
+                train_time=train_time, model_state_dict=model.state_dict(), history=history)
         utils.export_dict(info, info_dest_name)
         print(f"Test Loss: {test_loss}")
 

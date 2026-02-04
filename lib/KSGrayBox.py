@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 from torch.fft import fft, ifft
 from LegPoly import * 
+from neuralop.models import FNO
 import numpy as np
 
 class Spline_Activation(nn.Module):
@@ -9,9 +10,9 @@ class Spline_Activation(nn.Module):
         super(Spline_Activation, self).__init__()
 
     def forward(self, x):
-        zeros = torch.zeros(x.size())
-        out1 = torch.min(torch.max(zeros-1,x) , zeros)
-        out2 = torch.min(-torch.min(zeros+1, x), zeros) 
+        zeros = torch.zeros_like(x)
+        out1 = torch.min(torch.max(zeros - 1, x), zeros)
+        out2 = torch.min(-torch.min(zeros + 1, x), zeros)
         return 1 + out1 + out2
 
 class MLP(nn.Module):
@@ -42,6 +43,35 @@ class MLP(nn.Module):
 
         return
 
+class ODEMLPFunc_FNO(nn.Module):
+    """
+        Class to define the ODE function in terms of the neural network (the FNO)
+    """
+    
+    def __init__(self, n_modes, in_channels=1, out_channels=1, hidden_channels=64, device=None, return_coeffs=False):
+        super().__init__()
+        self.model = FNO(
+            n_modes=(n_modes,),
+            in_channels=in_channels,
+            out_channels=out_channels,
+            hidden_channels=hidden_channels,   
+        )
+        self.return_coeffs = return_coeffs
+        self.coeffs = None
+        
+    def forward(self, x):
+        # print("in ODEMLPFunc_FNO forward \n")
+        # print("x.size(): ", x.size())
+        if x.dim() == 4 and x.size(2) == 1:
+            x = x.squeeze(2)
+            # print("x.size() after squeeze: ", x.size())
+        x = x.permute(1,0,2)  # (batch, time, n_embeddings) -> (time, batch, n_embeddings)
+        # print("x.size() after permute: ", x.size())
+        device = next(self.model.parameters()).device
+        x = x.to(device)
+        x = x.contiguous().float()
+        return self.model(x)
+    
 class ODEMLPFunc(nn.Module):
     """
         Class to define the ODE function in terms of the neural network (the MLP)
@@ -71,48 +101,54 @@ class ODEMLPFunc(nn.Module):
             self.coeffs = self.mlp(xinput)
             return torch.bmm(self.coeffs, xfeature.squeeze(1))
         return torch.bmm(self.mlp(xinput), xfeature.squeeze(1))
-
+    
 # Stepping procedure for the RNN
 class SingleStep(nn.Module):
     """
         Class to define the single step of the RNN (ETD RK4 method for solving KS equation)
     """
-    def __init__(self, odefunc, N, h):
+    def __init__(self, odefunc, N, h, device=None):
         super(SingleStep, self).__init__()
         self.odefunc = odefunc
-
         # Pre-compute quantities for the ETD RK4 method
-        k = torch.cat([torch.arange(0,N/2),torch.tensor([0.]),torch.arange(-N/2+1,0)],0)/16
+        device = torch.device(device) if device is not None else torch.device('cpu')
+        # create k on the requested device
+        k = torch.cat([
+            torch.arange(0, N//2, device=device, dtype=torch.float32),
+            torch.tensor([0.], device=device, dtype=torch.float32),
+            torch.arange(-N//2+1, 0, device=device, dtype=torch.float32)
+        ], 0) / 16.0
         k = k.detach()
-        filter = torch.abs(k) < (1/3) * N/2
+        filter = torch.abs(k) < (1.0/3.0) * (N/2)
 
-        g = -.5j*k
-        L = k**2 - k**4 
-        E = (h*L).exp()
-        E2 = (h*L/2).exp()
+        g = (-0.5j) * k.to(torch.complex64)
+        L = k**2 - k**4
+        E = (h * L).exp()
+        E2 = (h * L / 2).exp()
         M = 16
-        r = (1j*torch.pi*(torch.arange(1,M+1)-.5)/M)
-        r = r.type(torch.complex64)
-        LR = h*L[:,None].repeat_interleave(M,1) + r[None,:].repeat_interleave(N,0)
-        Q = h*(((LR/2).exp()-1)/LR).mean(dim=1).real
-        f1 = h*((-4-LR+LR.exp()*(4-3*LR+LR**2))/LR**3).mean(dim=1).real
-        f2 = h*((2+LR+LR.exp()*(-2+LR))/LR**3).mean(dim=1).real
-        f3 = h*((-4-3*LR-LR**2+LR.exp()*(4-LR))/LR**3).mean(dim=1).real
+        r = (1j * torch.pi * (torch.arange(1, M+1, device=device, dtype=torch.float32) - 0.5) / M)
+        r = r.to(torch.complex64)
+        LR = h * L[:, None].repeat_interleave(M, 1) + r[None, :].repeat_interleave(N, 0)
+        Q = h * (((LR/2).exp() - 1) / LR).mean(dim=1).real
+        f1 = h * (((-4 - LR + LR.exp() * (4 - 3 * LR + LR**2)) / LR**3).mean(dim=1).real)
+        f2 = h * (((2 + LR + LR.exp() * (-2 + LR)) / LR**3).mean(dim=1).real)
+        f3 = h * (((-4 - 3 * LR - LR**2 + LR.exp() * (4 - LR)) / LR**3).mean(dim=1).real)
 
         self.h = h
-        self.k = k
-        self.g = g
-        self.L = L
-        self.E = E
-        self.E2 = E2
+        # register buffers so .to(device) moves them with the module if needed
+        self.register_buffer('k', k)
+        self.register_buffer('g', g)
+        self.register_buffer('L', L)
+        self.register_buffer('E', E)
+        self.register_buffer('E2', E2)
         self.M = M
-        self.r = r
-        self.LR = LR
-        self.Q = Q
-        self.f1 = f1
-        self.f2 = f2
-        self.f3 = f3
-        self.filter = filter
+        self.register_buffer('r', r)
+        self.register_buffer('LR', LR)
+        self.register_buffer('Q', Q)
+        self.register_buffer('f1', f1)
+        self.register_buffer('f2', f2)
+        self.register_buffer('f3', f3)
+        self.register_buffer('filter', filter)
 
         # Store the old values of intermediate solutions
         self.xold = None
@@ -168,11 +204,15 @@ class SingleStep(nn.Module):
         out = out.reshape(out.shape[0], out.shape[1], -1)   # size(batch_size, time=1, n_embeddings*n_modes)
         # print(f"in KSGraybox.py return_x_input: out.size() = {out.size(), out.dtype}")
         return out / sbatch_max
+    
 
-    def nonlinear(self, xold, x): 
-        # return self.g * fft(self.odefunc(0, self.return_x_input(xold), self.return_feature_matrix(x)), dim=-1).type(torch.complex64)
-        return fft(self.odefunc(0, self.return_x_input(xold), self.return_feature_matrix(x)), dim=-1).type(torch.complex64)
+    # def nonlinear(self, xold, x): 
+    #     # return self.g * fft(self.odefunc(0, self.return_x_input(xold), self.return_feature_matrix(x)), dim=-1).type(torch.complex64)
+    #     return fft(self.odefunc(0, self.return_x_input(xold), self.return_feature_matrix(x)), dim=-1).type(torch.complex64)
 
+    def nonlinear(self, xold, x):
+        out = ifft(torch.stack(xold), dim=-1).real
+        return fft(self.odefunc(out), dim=-1).type(torch.complex64)
 
     def forward(self, x):
         # Inputs to model are current state and past state in Fourier space
@@ -199,7 +239,7 @@ class MultiStep(nn.Module):
     """
         Wrapper class for the SingleStep class to apply the single step multiple times.    
     """
-    def __init__(self, N,h, uscales, n_embeddings=6, n_modes=5, return_coeffs=False, output_nonlinear=False):
+    def __init__(self, N,h, uscales, n_embeddings=6, n_modes=5, return_coeffs=False, output_nonlinear=False, device=None):
         """
             Initialize the MultiStep class.
             Inputs:
@@ -209,8 +249,9 @@ class MultiStep(nn.Module):
                 return_coeffs: bool, whether to return the coefficients
         """
         super(MultiStep, self).__init__()
-        odefunc = ODEMLPFunc(n_modes, n_embeddings=n_embeddings, return_coeffs=return_coeffs)
-        self.stepper = SingleStep(odefunc, N,h)
+        # odefunc = ODEMLPFunc(n_modes, n_embeddings=n_embeddings, return_coeffs=return_coeffs)
+        odefunc = ODEMLPFunc_FNO(N, in_channels=n_embeddings, out_channels=1, hidden_channels=64, device=device)
+        self.stepper = SingleStep(odefunc, N, h, device=device)
         self.n_embeddings = n_embeddings
         self.output_nonlinear = output_nonlinear
     
@@ -245,7 +286,7 @@ class KSGrayBox(nn.Module):
         Wrapper class for the MultiStep module
     """
 
-    def __init__(self, N,h, uscales, n_embeddings=6, n_modes=5, return_coeffs=False, output_nonlinear=False):
+    def __init__(self, N,h, uscales, n_embeddings=6, n_modes=5, return_coeffs=False, output_nonlinear=False, device=None):
         """
             Initialize the KSGrayBox class.
             Inputs:
@@ -254,7 +295,7 @@ class KSGrayBox(nn.Module):
                 uscales: scales for the Fourier modes
         """
         super(KSGrayBox, self).__init__()
-        self.model = MultiStep(N,h, uscales, n_embeddings, n_modes, return_coeffs=return_coeffs, output_nonlinear=output_nonlinear)
+        self.model = MultiStep(N, h, uscales, n_embeddings, n_modes, return_coeffs=return_coeffs, output_nonlinear=output_nonlinear, device=device)
 
     def return_coeffs(self): 
         return self.model.stepper.odefunc.coeffs

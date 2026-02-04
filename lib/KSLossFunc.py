@@ -14,12 +14,17 @@ def compute_auto_correlation(*, data):
 
     Nbatch = data.size(0)
     tspan = data.size(1)
-    autocorr = torch.zeros((Nbatch, tspan))
-    shifts = torch.arange(tspan)
+    # create output on same device/dtype as input
+    autocorr = data.new_zeros((Nbatch, tspan))
 
-    for ii, shift in enumerate(shifts): 
-        diffs = data[..., :-shift if shift else None] - data[..., shift:]
-        autocorr[..., ii] = torch.sum(torch.mean(torch.real(diffs*torch.conj(diffs)), dim=-1), dim=-1)
+    # iterate with Python ints to avoid tensor-slicing issues
+    for ii in range(tspan):
+        shift = ii
+        if shift == 0:
+            diffs = data - data
+        else:
+            diffs = data[..., :-shift] - data[..., shift:]
+        autocorr[..., ii] = torch.sum(torch.mean(torch.real(diffs * torch.conj(diffs)), dim=-1), dim=-1)
 
     return autocorr
 
@@ -121,7 +126,7 @@ class KSL1RegRealDtMeanSquaredError(nn.Module):
         batch_size = Pred.size(0)//2
         err = Pred - Y
         relative_weight  = 0.5
-        weight = torch.ones(Pred.size(0))
+        weight = Pred.new_ones(Pred.size(0))
         time_deriv_loss_weight = Pred.size(1) # also multiply by number of time points to make it comparable to the real space loss
         weight[batch_size:] *= time_deriv_loss_weight
         weight = weight[:, None, None] 
@@ -129,7 +134,9 @@ class KSL1RegRealDtMeanSquaredError(nn.Module):
 
         # Multiply by two because we are taking mean over Nbatch not 2*Nbatch
         # Stacking the solution and its time derivative is for convenience
-        # and we are actually computing two different losses 
+        # and we are actually computing two different losses
+        if coeffs is None:
+            return 2*torch.mean(weight * err**2) 
         return 2*torch.mean(weight * err**2) + self.lam * torch.mean(torch.sqrt(coeffs**2 + eps))
 
 class KSL2RegRealDtMeanSquaredError(nn.Module):
@@ -143,7 +150,7 @@ class KSL2RegRealDtMeanSquaredError(nn.Module):
         super(KSL2RegRealDtMeanSquaredError, self).__init__()
         self.lam = lam
 
-    def forward(self, Pred, Y, coeffs):
+    def forward(self, Pred, Y, coeffs=None):
         """
             Forward pass of the loss function.
             Computes the mean squared error between the predicted and true values.
@@ -155,12 +162,14 @@ class KSL2RegRealDtMeanSquaredError(nn.Module):
         """
         batch_size = Pred.size(0)//2
         err = Pred - Y
-        weight = torch.ones(Pred.size(0))
+        weight = Pred.new_ones(Pred.size(0))
         time_deriv_loss_weight = 10
         weight[batch_size:] *= time_deriv_loss_weight
         weight = weight[:, None, None] 
         # err[batch_size:] = err[batch_size:] * weight
         eps = 1e-10
+        if coeffs is None:
+            return torch.mean(weight * err**2)
         return torch.mean(weight * err**2) + self.lam * torch.mean(coeffs**2)
 
 class KSL2RegRealDtCorrWeightMeanSquaredError(nn.Module):
@@ -192,8 +201,8 @@ class KSL2RegRealDtCorrWeightMeanSquaredError(nn.Module):
         steepness = 0.1
         # weight = 1 - torch.exp( -(corr_weight * 1/compute_auto_correlation(data=err[:batch_size])) )
         # weight = corr_weight * torch.exp( - ( steepness * compute_auto_correlation(data=err[:batch_size]) + 0.1 )**-1 )
-        weight = corr_weight * torch.ones((batch_size, tspan))
-        weight = torch.cat([torch.ones((batch_size, tspan)), weight], dim=0)
+        weight = corr_weight * Pred.new_ones((batch_size, tspan))
+        weight = torch.cat([Pred.new_ones((batch_size, tspan)), weight], dim=0)
         # print(weight)
         # err[batch_size:] = err[batch_size:] * weight
         eps = 1e-10

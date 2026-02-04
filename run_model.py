@@ -16,6 +16,11 @@ importlib.reload(KSGrayBox)
 import os
 import pickle
 from time import time
+import neuralop
+
+import warnings, logging
+warnings.filterwarnings("ignore", module="matplotlib")
+logging.getLogger("matplotlib").setLevel(logging.ERROR)
 
 def main():
     """ 
@@ -41,7 +46,7 @@ def main():
 
     # Create the dataset and dataloader
     test_data = KSDataset.KSDataset(info=info, train_key="train", set_type="test")
-    test_dataloader = DataLoader(test_data, batch_size=1)
+    test_dataloader = DataLoader(test_data, batch_size=1, pin_memory=True)
 
     # Loss Function
     lam = 6e-5; 1e-4; 0; 1e-2
@@ -53,8 +58,43 @@ def main():
 
     # Load the model in evaluation mode
     N = 128
-    model = KSGrayBox.KSGrayBox(h=0.25, N=N, uscales=uscales, n_embeddings=8, n_modes=5, return_coeffs=True, output_nonlinear=True).to(device)
-    model.load_state_dict(torch.load(pth_file))
+    model = KSGrayBox.KSGrayBox(h=0.25, 
+                                N=128, 
+                                uscales=uscales, 
+                                n_embeddings=8, 
+                                n_modes=5, 
+                                return_coeffs=True, 
+                                device=device,
+                                output_nonlinear=True).to(device)
+    # load with map_location to ensure tensors land on the correct device
+    torch.serialization.add_safe_globals([torch._C._nn.gelu])
+    torch.serialization.add_safe_globals([neuralop.layers.spectral_convolution.SpectralConv])
+    # ckpt = torch.load(pth_file, map_location=device)
+    # state_dict = ckpt.get('state_dict', ckpt)
+    # model.load_state_dict(state_dict)
+    # model.eval()
+    ckpt = torch.load(pth_file, map_location=device)
+    state_dict = ckpt.get('state_dict', ckpt)
+
+    # remove PyTorch _metadata entry if present
+    if isinstance(state_dict, dict) and '_metadata' in state_dict:
+        state_dict.pop('_metadata')
+    # strip DataParallel "module." prefix and ensure tensors on target device
+    new_state = {}
+    for k, v in state_dict.items():
+        new_k = k[7:] if k.startswith('module.') else k
+        new_state[new_k] = v.to(device) if torch.is_tensor(v) else v
+
+    # try strict load, fall back to non-strict and print diagnostics
+    try:
+        model.load_state_dict(new_state)
+    except RuntimeError as e:
+        print("Strict load failed:", e)
+        info = model.load_state_dict(new_state, strict=False)
+        print("Missing keys:", info.missing_keys)
+        print("Unexpected keys:", info.unexpected_keys)
+
+    model.to(device)
     model.eval()
 
     def test_loop(_dataloader, _model, _loss_fn):
@@ -67,28 +107,30 @@ def main():
         truth = []
         truth_dt = []
         with torch.no_grad():
-            times = torch.arange(_dataloader.dataset.useq.size(1)).type(torch.float32)
+            times = torch.arange(_dataloader.dataset.useq.size(1), dtype=torch.float32, device=device)
             for ii, (y0, Y) in enumerate(_dataloader):
                 y, ydt = Y
                 Y = torch.cat([y, ydt], dim=0)
-                ydt = ydt.to(device)
-                y = y.to(device)
+                # move inputs to device for model
+                y0 = y0.to(device)
+                # y = y.to(device)
+                # ydt = ydt.to(device)
                 pred, nonlinear = _model(y0, steps=y.size(1))
                 pred = torch.fft.ifft(pred, dim=-1).real
                 nonlinear = torch.fft.ifft(nonlinear, dim=-1).real
                 pred_dt = NaturalCubicSpline(natural_cubic_spline_coeffs(times, pred)).derivative(times)
 
-                # Rescale output for visualization
-                predictions.append(pred.squeeze() * scale)
-                predictions_dt.append(pred_dt.squeeze() * scale)
-                truth.append(y.squeeze() * scale)
-                truth_dt.append(ydt.squeeze() * scale)
-                nonlinear_pred.append(nonlinear.squeeze())
+                # Rescale output and move to CPU for visualization
+                predictions.append(pred.squeeze().cpu() * scale)
+                predictions_dt.append(pred_dt.squeeze().cpu() * scale)
+                truth.append(y.squeeze().cpu() * scale)
+                truth_dt.append(ydt.squeeze().cpu() * scale)
+                nonlinear_pred.append(nonlinear.squeeze().cpu())
 
                 pred = torch.cat([pred, pred_dt], dim=0)
                 coeffs = _model.return_coeffs()
                 print(f"coeffs: {coeffs}")
-                test_loss += _loss_fn(pred, Y, coeffs).item()
+                test_loss += _loss_fn(pred, Y.to(device), coeffs).item()
 
             predictions = torch.cat(predictions, dim=0)
             predictions_dt = torch.cat(predictions_dt, dim=0)

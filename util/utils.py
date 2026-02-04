@@ -251,7 +251,7 @@ def animate_prediction_vs_truth_vary_x(*, x, predictions, truth, save=False, fil
 
     # ax.set_xlim(x[0], x[-1])
     ax.set_xlim(-3, 3)
-    ax.set_ylim(-5, 0)
+    # ax.set_ylim(-5, 0)
     ax.set_xlabel('x')
     ax.set_ylabel('u(x)')
     ax.legend(loc='upper right')
