@@ -217,18 +217,22 @@ class SingleStep(nn.Module):
     def forward(self, x):
         # Inputs to model are current state and past state in Fourier space
         Nv = self.g * self.nonlinear(self.xold, x)
+        # Nv = self.nonlinear(self.xold, x)
 
         a = self.E2 * x + self.Q *  Nv
         self.aold = self.update_xold(self.aold, a)
         Na = self.g * self.nonlinear(self.aold, a)
+        # Na = self.nonlinear(self.aold, a)
 
         b = self.E2 * x + self.Q * Na
         self.bold = self.update_xold(self.bold, b)
         Nb = self.g * self.nonlinear(self.bold, b)
+        # Nb = self.nonlinear(self.bold, b)
 
         c = self.E2 * a + self.Q * (2 * Nb - Nv)
         self.cold = self.update_xold(self.cold, c)
         Nc = self.g * self.nonlinear(self.cold, c)
+        # Nc = self.nonlinear(self.cold, c)
 
         x = self.E * x + Nv * self.f1 + 2 * (Na + Nb) * self.f2 + Nc * self.f3
         self.xold = self.update_xold(self.xold, x)

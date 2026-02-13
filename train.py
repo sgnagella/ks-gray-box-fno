@@ -23,7 +23,10 @@ def main():
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     dirname = os.path.dirname(__file__)
-    file = "ks_soln_ft_N_128_dt_0.25_tmax_1000_noise=True_sigma=0.1.pt"
+    sigma = 0.1; 0.01
+    file = f"ks_soln_ft_N_128_dt_0.25_tmax_1000_noise=True_sigma={sigma}_tau=1.0.pt"
+    file_gauss = f"ks_soln_ft_N_128_dt_0.25_tmax_1000_noise=True_sigma={sigma}.pt"
+    val_file = "ks_soln_ft_N_128_dt_0.25_tmax_1000.pt"
     filename = os.path.join(dirname, 'training_data', file)
     dest_file = 'ks_model_v3.pth'; 'ks_model_v2.pth'; 'ks_model.pth'; 
     dest_name = os.path.join(dirname, 'models', dest_file)
@@ -35,13 +38,15 @@ def main():
     # Load the time series and segment it into smaller trajectories
 
     traj = torch.load(filename)[1:].numpy()
+    traj_gauss = torch.load(os.path.join(dirname, 'training_data', file_gauss))[1:].numpy()
+    traj = np.concatenate((traj, traj_gauss), axis=0)
     traj_list, uscales = utils.segment_data(data=traj, nLengthTraj=5)
-    info = utils.generate_info_dict(train_ratio=0.6, val_ratio=0.2, traj_list=traj_list, uscales=uscales)
-
+    info = utils.generate_info_dict(train_ratio=0.8, val_ratio=0.1, traj_list=traj_list, uscales=uscales)
+    info_val = utils.generate_info_dict(train_ratio=0.8, val_ratio=0.1, traj_list=utils.segment_data(data=torch.load(os.path.join(dirname, 'training_data', val_file))[1:].numpy(), nLengthTraj=5)[0], uscales=utils.segment_data(data=torch.load(os.path.join(dirname, 'training_data', val_file))[1:].numpy(), nLengthTraj=5)[1])
     # Create the dataset and dataloader
     train_data = KSDataset.KSDataset(info=info, train_key="train", set_type="train")
-    val_data = KSDataset.KSDataset(info=info, train_key="train", set_type="val")
-    test_data = KSDataset.KSDataset(info=info, train_key="train", set_type="test")
+    val_data = KSDataset.KSDataset(info=info_val, train_key="train", set_type="val")
+    test_data = KSDataset.KSDataset(info=info_val, train_key="train", set_type="test")
 
     train_dataloader = DataLoader(train_data, batch_size=5, num_workers=8, shuffle=True, pin_memory=True)
     val_dataloader = DataLoader(val_data, batch_size=5, num_workers=4, pin_memory=True)
