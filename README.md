@@ -8,7 +8,7 @@ The 1D KS equation on a periodic domain is:
 
 $$u_t + u_{xx} + u_{xxxx} + \tfrac{1}{2}(u^2)_x = 0$$
 
-The linear terms $u_{xx} + u_{xxxx}$ are solved exactly in Fourier space via ETD-RK4. The nonlinear convection term $-\frac{1}{2}(u^2)_x$ is treated as **unknown** and approximated by the FNO, which receives a window of past states as input. This structure enforces physical consistency while keeping the learned component compact.
+The linear terms $u_{xx} + u_{xxxx}$ are solved exactly in Fourier space via ETD-RK4. The nonlinear convection term $\frac{1}{2}(u^2)_x$ is treated as **unknown** and approximated by the FNO, which receives a window of past states as input. This structure enforces physical consistency while keeping the learned component compact.
 
 ## Training data
 
