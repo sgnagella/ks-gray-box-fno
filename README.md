@@ -1,6 +1,6 @@
 # Gray-Box Neural Network for the Kuramoto-Sivashinsky Equation
 
-A gray-box machine learning model for the 1D Kuramoto-Sivashinsky (KS) equation. The known linear physics is embedded directly into the time-stepper (ETD-RK4 in Fourier space), while a **Fourier Neural Operator (FNO)** learns the unknown nonlinear term from data — including stochastic trajectories driven by Gaussian or Ornstein-Uhlenbeck noise.
+A gray-box machine learning model for the 1D Kuramoto-Sivashinsky (KS) equation. The known linear physics is embedded directly into the time-stepper (ETD-RK4 in Fourier space), while a **Fourier Neural Operator (FNO)** learns the unknown nonlinear term from training data: stochastic trajectories driven by Gaussian or Ornstein-Uhlenbeck noise.
 
 ## Background
 
