@@ -2,15 +2,15 @@ import torch
 from copy import deepcopy
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
+from torchcubicspline import(natural_cubic_spline_coeffs, 
+                             NaturalCubicSpline)
 import torch.optim as optim
 import numpy as np
 import sys
 sys.path.append('util/')
 sys.path.append('lib/')
-import utils
-import KSDataset
-import KSGrayBox
-import KSLossFunc
+from util import utils
+from lib import KSDataset, KSGrayBox, KSLossFunc
 import os
 from time import time
 
@@ -23,59 +23,104 @@ def main():
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     dirname = os.path.dirname(__file__)
-    file = "ks_soln_ft_N_128_dt_0.25_tmax_500.pt"
-    filename = os.path.join(dirname, 'training_data', file)
-    dest_name = os.path.join(dirname, 'models', 'ks_model.pth')
+    sigma = 0.05; 0.1; 0.01
+    # file = f"ks_soln_ft_N_128_dt_0.25_tmax_1000_noise=True_sigma={sigma}_tau=1.0.pt"
+    file_gauss = f"ks_soln_ft_N_128_dt_0.25_tmax_2000_noise=True_sigma={sigma}.pt"
+    val_file = "ks_soln_ft_N_128_dt_0.25_tmax_1000.pt"
+    # filename = os.path.join(dirname, 'training_data', file)
+    dest_file = 'ks_model_v3.pth'; 'ks_model_v2.pth'; 'ks_model.pth'; 
+    dest_name = os.path.join(dirname, 'models', dest_file)
     info_dest_name = os.path.join(dirname, 'models', 'ks_model_info.pickle')
-    if not os.path.exists(filename):
-        raise FileNotFoundError(f"File {filename} not found.")
+    # if not os.path.exists(filename):
+    #     raise FileNotFoundError(f"File {filename} not found.")
     os.makedirs(os.path.join(dirname, 'models'), exist_ok=True)
 
     # Load the time series and segment it into smaller trajectories
-    traj = torch.load(filename)[1:].numpy()
-    traj_list, uscales = utils.segment_data(data=traj, nLengthTraj=10)
-    info = utils.generate_info_dict(train_ratio=0.6, val_ratio=0.2, traj_list=traj_list, uscales=uscales)
 
+    # traj = torch.load(filename)[1:].numpy()
+    traj_gauss = torch.load(os.path.join(dirname, 'training_data', file_gauss))[1:].numpy()
+    traj_val = torch.load(os.path.join(dirname, 'training_data', val_file))[1:].numpy()
+
+    # traj = np.concatenate((traj, traj_gauss), axis=0)
+    traj_list, uscales = utils.segment_data(data=traj_gauss, nLengthTraj=5)
+
+    traj_val_list, uscales_val = utils.segment_data(data=traj_val, nLengthTraj=5)
+    
+    info = utils.generate_info_dict(train_ratio=0.6, val_ratio=0.2, traj_list=traj_list, uscales=uscales)
+    info_val = utils.generate_info_dict(train_ratio=0.6, val_ratio=0.2, traj_list=traj_val_list, uscales=uscales_val)
     # Create the dataset and dataloader
     train_data = KSDataset.KSDataset(info=info, train_key="train", set_type="train")
-    val_data = KSDataset.KSDataset(info=info, train_key="train", set_type="val")
-    test_data = KSDataset.KSDataset(info=info, train_key="train", set_type="test")
+    val_data = KSDataset.KSDataset(info=info_val, train_key="train", set_type="val")
+    test_data = KSDataset.KSDataset(info=info_val, train_key="train", set_type="test")
 
-    train_dataloader = DataLoader(train_data, batch_size=5, num_workers=8, shuffle=True)
-    val_dataloader = DataLoader(val_data, batch_size=5, num_workers=4)
-    test_dataloader = DataLoader(test_data, batch_size=1)
+    train_dataloader = DataLoader(train_data, batch_size=5, num_workers=8, shuffle=True, pin_memory=True)
+    val_dataloader = DataLoader(val_data, batch_size=5, num_workers=4, pin_memory=True)
+    test_dataloader = DataLoader(test_data, batch_size=1, pin_memory=True)
 
     # Load the model 
-    model = KSGrayBox.KSGrayBox(h=0.25, N=128, uscales=uscales).to(device)
-    optimizer = optim.Adam(model.parameters(), lr=1e-3, betas=(0.9, 0.7), eps=1e-7, weight_decay=1e-10)
-    loss_fn = KSLossFunc.KSMeanSquaredError()
+    model = KSGrayBox.KSGrayBox(
+        h=0.25, 
+        N=128, 
+        uscales=uscales, 
+        n_embeddings=8, 
+        n_modes=5, 
+        return_coeffs=True, 
+        device=device,
+        output_nonlinear=False).to(device)
+    lr = 1e-2; 1e-3; 1e-4
+    betas =  (0.9, 0.7); (0.9, 0.999)
+    optimizer = optim.Adam(model.parameters(), lr=lr, betas=betas, eps=1e-7, weight_decay=0, amsgrad=True)
+    lam = 0; 6e-5; 1e-4; 1e-2; 1e-1
+    loss_fn = KSLossFunc.KSL1RegRealDtMeanSquaredError(lam=lam)
 
+    # exit()
     def train_loop(_dataloader, _model, _loss_fn, _optimizer):
         size = len(_dataloader.dataset)
-        for y0, y in _dataloader:
-            # print(y0.size(1), y.size(1))
-            # Compute prediction and loss
+        num_batches = len(_dataloader)
+        times = torch.arange(_dataloader.dataset.useq.size(1), dtype=torch.float32, device=device)
+        train_loss = 0.0
+        for y0, Y in _dataloader:
+            # move inputs to device
+            y0 = y0.to(device)
+            y, ydt = Y
             y = y.to(device)
+            ydt = ydt.to(device)
+            # Compute prediction and loss
+            Y = torch.cat([y, ydt], dim=0)
             pred = _model(y0, steps=y.size(1))
-            # print(f"pred shape: {pred.size()}, y shape: {y.size()}")
-            loss = _loss_fn(pred, y)
+            pred = torch.fft.ifft(pred, dim=-1).real
+            pred_dt = NaturalCubicSpline(natural_cubic_spline_coeffs(times, pred)).derivative(times)
+            pred = torch.cat([pred, pred_dt], dim=0)
+            loss = _loss_fn(pred, Y, _model.return_coeffs())
+            train_loss += loss.item()
 
             # Backpropagation
             _optimizer.zero_grad()
             loss.backward()
             _optimizer.step()
 
-        return
+        train_loss /= num_batches
+        print(f"train_loss: {train_loss:.3e}")
+        return train_loss
 
     def val_loop(_dataloader, _model, _loss_fn):
         size = len(_dataloader.dataset)
         num_batches = len(_dataloader)
         val_loss = 0
+        times = torch.arange(_dataloader.dataset.useq.size(1), dtype=torch.float32, device=device)
         with torch.no_grad():
-            for y0, y in _dataloader:
+            for y0, Y in _dataloader:
+                # move inputs to device
+                y0 = y0.to(device)
+                y, ydt = Y
                 y = y.to(device)
+                ydt = ydt.to(device)
+                Y = torch.cat([y, ydt], dim=0)
                 pred = _model(y0, steps=y.size(1))
-                val_loss += _loss_fn(pred, y).item()
+                pred = torch.fft.ifft(pred, dim=-1).real
+                pred_dt = NaturalCubicSpline(natural_cubic_spline_coeffs(times, pred)).derivative(times)
+                pred = torch.cat([pred, pred_dt], dim=0)
+                val_loss += _loss_fn(pred, Y, _model.return_coeffs()).item()
         val_loss /= num_batches
         print(f"val_loss: {val_loss:.3e}")
         return val_loss
@@ -84,25 +129,44 @@ def main():
         size = len(_dataloader.dataset)
         num_batches = len(_dataloader)
         test_loss = 0
+        times = torch.arange(_dataloader.dataset.useq.size(1), dtype=torch.float32, device=device)
         with torch.no_grad():
-            for y0, y in _dataloader:
+            for y0, Y in _dataloader:
+                # move inputs to device
+                y0 = y0.to(device)
+                y, ydt = Y
                 y = y.to(device)
+                ydt = ydt.to(device)
+                Y = torch.cat([y, ydt], dim=0)
                 pred = _model(y0, steps=y.size(1))
-                test_loss += _loss_fn(pred, y).item()
+                pred = torch.fft.ifft(pred, dim=-1).real
+                pred_dt = NaturalCubicSpline(natural_cubic_spline_coeffs(times, pred)).derivative(times)
+                pred = torch.cat([pred, pred_dt], dim=0)
+                test_loss += _loss_fn(pred, Y, _model.return_coeffs()).item()
         test_loss /= num_batches
         return pred, test_loss
     
-    EPOCHS = 500
-    PATIENCE = 100
+    EPOCHS = 2000
+    PATIENCE = 150
     counter = 0
     best_loss = np.inf
+    checkpoint = False # continues training from the last checkpoint
     
     try:
+        if os.path.isfile(dest_name) and checkpoint:
+            model.load_state_dict(torch.load(dest_name))
+            print("Model loaded to continue training.")
+
         toc = time()
+        # record training history
+        history = {'train_loss': [], 'val_loss': []}
+
         for t in range(EPOCHS):
             print(f"Epoch {t + 1}\n-------------------------------")
-            train_loop(train_dataloader, model, loss_fn, optimizer)
+            train_loss = train_loop(train_dataloader, model, loss_fn, optimizer)
             val_loss = val_loop(val_dataloader, model, loss_fn)
+            history['train_loss'].append(train_loss)
+            history['val_loss'].append(val_loss)
             counter += 1
             if val_loss < best_loss:
                 best_loss = val_loss
@@ -120,15 +184,13 @@ def main():
         test_predictions, test_loss = test_loop(test_dataloader, model, loss_fn)
         train_time = tic - toc
         info = dict(test_predictions=test_predictions, test_loss=test_loss,
-                    train_time=train_time, model_state_dict=model.state_dict())
+                train_time=train_time, model_state_dict=model.state_dict(), history=history)
         utils.export_dict(info, info_dest_name)
         print(f"Test Loss: {test_loss}")
 
     except KeyboardInterrupt:
         torch.save(best_dict, dest_name)
         print("Model saved.")
-
-    
 
     return
 

@@ -29,6 +29,26 @@ FIG_WIDTH = 5 # inches
 FIG_HEIGHT = FIG_WIDTH/ASPECT_RATIO
 MARKEREDGEWIDTH = 1
 
+
+def compute_auto_correlation(*, data):
+    """
+        Computes the autocorrelation in the fourier coefficients of the data.
+        data: torch tensor of shape (Nbatch, tspan, Nmodes)
+        out: torch tensor of shape (Nbatch, tspan)
+    """
+
+    Nbatch = data.size(1)
+    tspan = data.size(2)
+    autocorr = torch.zeros((Nbatch, tspan))
+    shifts = torch.arange(tspan)
+
+    for ii, shift in enumerate(shifts): 
+        diffs = data[..., :-shift if shift else None] - data[..., shift:]
+        autocorr[..., ii] = torch.sum(torch.mean(torch.real(diffs*torch.conj(diffs)), dim=-1), dim=-1)
+
+    return autocorr
+
+
 def segment_data(*, data, nLengthTraj): 
     """
         Segment the data into trajectories of length nLengthTraj.
@@ -62,6 +82,32 @@ def segment_data(*, data, nLengthTraj):
     # Return the list of segmented data.
     return data_list , {"umin": np.array(u_mins), "umax": np.array(u_maxs)}
 
+# def get_uscales(traj_list): 
+#     """
+#         Get the scales for the data trajectories.
+#         Can use this function in case of performing scaling in different space.
+#     """
+
+#     # Sizes.
+#     nTraj = len(traj_list)
+
+#     # Lists to store the min and max values.
+#     u_mins = []
+#     u_maxs = []
+
+#     # Loop through all the data trajectories.
+#     for ii in range(nTraj):
+#         # Get the current trajectory.
+#         traj = traj_list[ii]
+#         umin, umax = np.min(traj), np.max(traj)
+#         u_mins.append(umin)
+#         u_maxs.append(umax)
+
+#     # Return the scales.
+#     return {"umin": np.array(u_mins), "umax": np.array(u_maxs)}
+
+# def 
+
 def get_train_val_data(*, data_list, uscales,
                        nTrainTraj, nTrainValTraj):
     """ Scale all the data trajectories using the provided
@@ -71,6 +117,7 @@ def get_train_val_data(*, data_list, uscales,
 
     # Extract the min and max scalings
     umin, umax = uscales["umin"], uscales["umax"]
+    scale = 10; 4.5
 
     # Sizes.
     nTraj = len(data_list)
@@ -84,7 +131,9 @@ def get_train_val_data(*, data_list, uscales,
     # Loop through all the data trajectories in the data list.
     for ii, data in enumerate(data_list):
         # Scale data.
-        u = (data - umin[ii])/(umax[ii] - umin[ii])
+        # u = (data - umin[ii])/(umax[ii] - umin[ii])
+        # u = 2*(data - umin[ii])/(umax[ii] - umin[ii]) - 1 # Scale to [-1, 1]
+        u = data / scale
         useq += [u]
         useq0 += [u[0][None,:]]
 
@@ -136,15 +185,20 @@ def generate_info_dict(*, train_ratio, val_ratio, traj_list, uscales):
 
     return info
 
-def animate_prediction_vs_truth(*, x, predictions, truth, save=False, filename=None):
+def animate_prediction_vs_truth(*, x, predictions, truth, save=False, filename=None, predictions_dt=None, truth_dt=None):
     """ Animate the results of the predictions.
     """
 
     # Create a figure and axis for the animation
     plt.close('all')
     fig, ax = plt.subplots(num=1, clear=True)
-    l1 = ax.plot(x, predictions[0], lw=2, color='blue', label='Prediction')
-    l2 = ax.plot(x, truth[0], lw=2, color='red', label='Truth')
+    l1 = ax.plot(x, predictions[0], ls='-', lw=2, color='blue', label='Prediction')
+    l2 = ax.plot(x, truth[0], ls='--', lw=2, color='red', label='Truth')
+
+    if predictions_dt is not None and truth_dt is not None:
+        l3 = ax.plot(x, predictions_dt[0], lw=2, color='blue', linestyle='--', label='Prediction (dt)')
+        l4 = ax.plot(x, truth_dt[0], lw=2, color='red', linestyle='--', label='Truth (dt)')
+
     ax.set_xlim(x[0], x[-1])
     ax.set_ylim(-10,10)
     ax.set_xlabel('x')
@@ -160,6 +214,10 @@ def animate_prediction_vs_truth(*, x, predictions, truth, save=False, filename=N
         l1[0].set_ydata(predictions[frame])
         l2[0].set_ydata(truth[frame])
 
+        if predictions_dt is not None and truth_dt is not None:
+            l3[0].set_ydata(predictions_dt[frame])
+            l4[0].set_ydata(truth_dt[frame])
+
         # Update the timer
         timer_text.set_text(r'$\tau = {}$'.format(frame))
         
@@ -172,6 +230,61 @@ def animate_prediction_vs_truth(*, x, predictions, truth, save=False, filename=N
         if '.gif' in filename.split('.'):
             filename = filename.split('.')[0]
         ani.save(os.path.join('figures', filename + '.gif'), dpi=200, writer='pillow')
+    
+    plt.show()
+    return None
+
+def animate_prediction_vs_truth_vary_x(*, x, predictions, truth, save=False, filename=None, predictions_dt=None, truth_dt=None):
+    """ Animate the results of the predictions.
+        Use this code in the case of time-varying x.
+    """
+
+    # Create a figure and axis for the animation
+    plt.close('all')
+    fig, ax = plt.subplots(num=1, clear=True)
+    l1 = ax.plot(x[0], predictions[0], marker='.', ls='none', color='blue', label='Prediction')
+    l2 = ax.plot(x[0], truth[0], marker='.', ls='none', color='red', label='Truth')
+
+    if predictions_dt is not None and truth_dt is not None:
+        l3 = ax.plot(x, predictions_dt[0], lw=2, color='blue', linestyle='--', label='Prediction (dt)')
+        l4 = ax.plot(x, truth_dt[0], lw=2, color='red', linestyle='--', label='Truth (dt)')
+
+    # ax.set_xlim(x[0], x[-1])
+    ax.set_xlim(-3, 3)
+    # ax.set_ylim(-5, 0)
+    ax.set_xlabel('x')
+    ax.set_ylabel('u(x)')
+    ax.legend(loc='upper right')
+    ax.grid(True)
+
+    # Create a text object for the timer
+    timer_text = ax.text(0.15, 0.95, '', transform=ax.transAxes, ha='right', va='top', fontsize=12, color='black')
+
+    # Animation update function
+    def update(frame):
+        l1[0].set_xdata(x[frame])
+        l2[0].set_xdata(x[frame])
+        l1[0].set_ydata(predictions[frame])
+        l2[0].set_ydata(truth[frame])
+
+        if predictions_dt is not None and truth_dt is not None:
+            l3[0].set_ydata(predictions_dt[frame])
+            l4[0].set_ydata(truth_dt[frame])
+
+        # Update the timer
+        timer_text.set_text(r'$\tau = {}$'.format(frame))
+        
+        return ax,
+
+    # Create and display the animation
+    ani = FuncAnimation(fig, update, frames=predictions.shape[0], blit=False, interval=250)
+    if save:
+        os.makedirs('figures', exist_ok=True)
+        if '.gif' in filename.split('.'):
+            filename = filename.split('.')[0]
+        ani.save(os.path.join('figures', filename + '.gif'), dpi=200, writer='pillow')
+    
+    plt.show()
     return None
 
 def export_dict(info_dict, filename):

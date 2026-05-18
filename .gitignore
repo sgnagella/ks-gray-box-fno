@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+
+# Large data files (>100 MB GitHub limit)
+training_data/ks_soln_ft_N_128_dt_0.25_tmax_500000.pt

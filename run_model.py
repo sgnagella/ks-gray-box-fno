@@ -1,18 +1,26 @@
 import torch
 from torch.utils.data import Dataset
 from torch.utils.data import DataLoader
+from torchcubicspline import(natural_cubic_spline_coeffs, 
+                             NaturalCubicSpline)
 import torch.optim as optim
 import numpy as np
 import sys
 sys.path.append('util/')
 sys.path.append('lib/')
-import utils
-import KSDataset
-import KSGrayBox
-import KSLossFunc
+from util import utils
+import importlib
+importlib.reload(utils)
+from lib import KSDataset, KSGrayBox, KSLossFunc
+importlib.reload(KSGrayBox)
 import os
 import pickle
 from time import time
+import neuralop
+
+import warnings, logging
+warnings.filterwarnings("ignore", module="matplotlib")
+logging.getLogger("matplotlib").setLevel(logging.ERROR)
 
 def main():
     """ 
@@ -21,8 +29,9 @@ def main():
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     dirname = os.path.dirname(__file__)
-    pth_file = os.path.join(dirname, 'models', 'ks_model.pth')
-    file = "ks_soln_ft_N_128_dt_0.25_tmax_500.pt"
+    file_model = "ks_model_v3.pth"; "ks_model_v2.pth"; "ks_model.pth"; 
+    pth_file = os.path.join(dirname, 'models', file_model)
+    file = "ks_soln_ft_N_128_dt_0.25_tmax_1000.pt"
     filename = os.path.join(dirname, 'training_data', file)
     if not os.path.exists(pth_file):
         raise FileNotFoundError(f"File {pth_file} not found.")
@@ -32,63 +41,155 @@ def main():
 
     # Load the time series and segment it into smaller trajectories
     traj = torch.load(filename)[1:].numpy()
+    # x = 32*torch.pi*torch.arange(1,N+1)/N
     traj_list, uscales = utils.segment_data(data=traj, nLengthTraj=10)
     info = utils.generate_info_dict(train_ratio=0.6, val_ratio=0.2, traj_list=traj_list, uscales=uscales)
 
     # Create the dataset and dataloader
     test_data = KSDataset.KSDataset(info=info, train_key="train", set_type="test")
-    test_dataloader = DataLoader(test_data, batch_size=1)
+    test_dataloader = DataLoader(test_data, batch_size=1, pin_memory=True)
 
     # Loss Function
-    loss_fn = KSLossFunc.KSMeanSquaredError()
+    lam = 6e-5; 1e-4; 0; 1e-2
+    loss_fn = KSLossFunc.KSL1RegRealDtMeanSquaredError(lam=lam)
 
     # Get the scales from the test_data
     test_scales = test_data.uscales
+    scale = 10; 4.5
 
     # Load the model in evaluation mode
     N = 128
-    model = KSGrayBox.KSGrayBox(h=0.25, N=N, uscales=uscales, return_coeffs=True).to(device)
-    model.load_state_dict(torch.load(pth_file))
+    model = KSGrayBox.KSGrayBox(h=0.25, 
+                                N=128, 
+                                uscales=uscales, 
+                                n_embeddings=8, 
+                                n_modes=5, 
+                                return_coeffs=True, 
+                                device=device,
+                                output_nonlinear=True).to(device)
+    # load with map_location to ensure tensors land on the correct device
+    try:
+        torch.serialization.add_safe_globals([torch._C._nn.gelu])
+        torch.serialization.add_safe_globals([neuralop.layers.spectral_convolution.SpectralConv])
+    except AttributeError:
+        # add_safe_globals not available; ensure referenced objects are importable so pickle can resolve them
+        pass
+    # ckpt = torch.load(pth_file, map_location=device)
+    # state_dict = ckpt.get('state_dict', ckpt)
+    # model.load_state_dict(state_dict)
+    # model.eval()
+    ckpt = torch.load(pth_file, map_location=device)
+    state_dict = ckpt.get('state_dict', ckpt)
+
+    # remove PyTorch _metadata entry if present
+    if isinstance(state_dict, dict) and '_metadata' in state_dict:
+        state_dict.pop('_metadata')
+    # strip DataParallel "module." prefix and ensure tensors on target device
+    new_state = {}
+    for k, v in state_dict.items():
+        new_k = k[7:] if k.startswith('module.') else k
+        new_state[new_k] = v.to(device) if torch.is_tensor(v) else v
+
+    # try strict load, fall back to non-strict and print diagnostics
+    try:
+        model.load_state_dict(new_state)
+    except RuntimeError as e:
+        print("Strict load failed:", e)
+        info = model.load_state_dict(new_state, strict=False)
+        print("Missing keys:", info.missing_keys)
+        print("Unexpected keys:", info.unexpected_keys)
+
+    model.to(device)
     model.eval()
 
     def test_loop(_dataloader, _model, _loss_fn):
         size = len(_dataloader.dataset)
-        # print(size)
         num_batches = len(_dataloader)
-        # print(num_batches)
         test_loss = 0
+        nonlinear_pred = []
         predictions = []
+        predictions_dt = []
         truth = []
+        truth_dt = []
         with torch.no_grad():
-            for ii, (y0, y) in enumerate(_dataloader):
-                y = y.to(device)
-                pred = _model(y0, steps=y.size(1))
-                test_loss += _loss_fn(pred, y).item()
+            times = torch.arange(_dataloader.dataset.useq.size(1), dtype=torch.float32, device=device)
+            for ii, (y0, Y) in enumerate(_dataloader):
+                y, ydt = Y
+                Y = torch.cat([y, ydt], dim=0)
+                # move inputs to device for model
+                y0 = y0.to(device)
+                # y = y.to(device)
+                # ydt = ydt.to(device)
+                pred, nonlinear = _model(y0, steps=y.size(1))
+                pred = torch.fft.ifft(pred, dim=-1).real
+                nonlinear = torch.fft.ifft(nonlinear, dim=-1).real
+                pred_dt = NaturalCubicSpline(natural_cubic_spline_coeffs(times, pred)).derivative(times)
 
-                # Rescale output for visualization
-                pred = pred.squeeze() # Remove the batch dimension (only 1 batch size)
-                predictions.append(pred * (test_scales['umax'][ii] - test_scales['umin'][ii]) + test_scales['umin'][ii])
-                truth.append(y.squeeze() * (test_scales['umax'][ii] - test_scales['umin'][ii]) + test_scales['umin'][ii])
+                # Rescale output and move to CPU for visualization
+                predictions.append(pred.squeeze().cpu() * scale)
+                predictions_dt.append(pred_dt.squeeze().cpu() * scale)
+                truth.append(y.squeeze().cpu() * scale)
+                truth_dt.append(ydt.squeeze().cpu() * scale)
+                nonlinear_pred.append(nonlinear.squeeze().cpu())
+
+                pred = torch.cat([pred, pred_dt], dim=0)
+                coeffs = _model.return_coeffs()
+                print(f"coeffs: {coeffs}")
+                test_loss += _loss_fn(pred, Y.to(device), coeffs).item()
 
             predictions = torch.cat(predictions, dim=0)
+            predictions_dt = torch.cat(predictions_dt, dim=0)
             truth = torch.cat(truth, dim=0)
+            truth_dt = torch.cat(truth_dt, dim=0)
+            nonlinear_pred = torch.cat(nonlinear_pred, dim=0)
+
         test_loss /= num_batches
-        return predictions, truth, test_loss
+        return predictions, truth, predictions_dt, truth_dt, nonlinear_pred, test_loss
     
     # Test the model
-    predictions, truth, test_loss = test_loop(test_dataloader, model, loss_fn)
+    predictions, truth, predictions_dt, truth_dt, nonlinear_pred, test_loss = test_loop(test_dataloader, model, loss_fn)    
     print(f"Test Loss: {test_loss}")
 
     # Animate the results
-    predictions = torch.fft.ifft(predictions, dim=1).detach().numpy()
-    truth = torch.fft.ifft(truth, dim=1).detach().numpy()
+    # Print min/max of real space data
+    print(f"Min of truth: {truth.min()}")
+    print(f"Max of truth: {truth.max()}")
     print(f"Predictions shape: {predictions.shape}")
     print(f"Tests shape: {truth.shape}")
 
     # Animate the results
     x = 32*np.pi*np.arange(1,N+1)/N
-    filename = 'spectral_kurasiv_1d_prediction_vs_truth'
-    utils.animate_prediction_vs_truth(x=x, predictions=predictions, truth=truth, save=True, filename=filename)
+    filename_soln = 'spectral_kurasiv_1d_prediction_vs_truth'
+    filename_deriv = 'spectral_kurasiv_1d_prediction_vs_truth_dt'
+    filename_nonlinear = 'spectral_kurasiv_1d_prediction_vs_truth_nonlinear'
+
+    # Animate the solution, u(x,t)
+    utils.animate_prediction_vs_truth(
+        x=x, 
+        predictions=predictions, 
+        truth=truth,
+        save=True, 
+        filename=filename_soln
+        )
+
+    # Animate the time derivative, du/dt
+    utils.animate_prediction_vs_truth(
+        x=x, 
+        predictions=predictions_dt, 
+        truth=truth_dt,
+        save=True, 
+        filename=filename_deriv
+    )
+
+    # Animate the nonlinear term N(u)
+    utils.animate_prediction_vs_truth_vary_x(
+        x=(predictions/scale), 
+        predictions=nonlinear_pred, 
+        truth=torch.full(nonlinear_pred.size(), float('nan')),
+        save=True, 
+        filename=filename_nonlinear
+    )
+    
     return
 
 if __name__ == "__main__":

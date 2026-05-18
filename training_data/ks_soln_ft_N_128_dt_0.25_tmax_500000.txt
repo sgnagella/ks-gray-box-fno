@@ -1,0 +1,6 @@
+Stored solution data for 1d-KS equation with N = 128, dt = 0.25, tmax = 500000.        
+To load the solution, use the following command:        
+
+vv = th.load('ks_soln_ft_N_128_dt_0.25_tmax_500000.pt')        
+
+ Data were stored every int(1/h) steps.
