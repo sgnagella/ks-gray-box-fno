@@ -90,11 +90,11 @@ This loads the trained model, runs it on held-out test trajectories, and saves a
 
 ## Results
 
-**Predicted vs. true solution $u(x,t)$ and time derivative $\dot{u}$**
+**Predicted vs. true solution $u(x,t)$**
 
-![Prediction vs. truth: time derivative](figures/spectral_kurasiv_1d_prediction_vs_truth_dt.gif)
+![Prediction vs. truth: time derivative](figures/spectral_kurasiv_1d_prediction_vs_truth.gif)
 
-*Comparison of predicted (blue) and true (orange) time derivative $\dot{u}(x,t)$ on test trajectories.*
+*Comparison of predicted (blue) and true (orange) on test trajectories.*
 
 **Learned nonlinear term $N(u)$**
 
