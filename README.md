@@ -38,7 +38,7 @@ The FNO (`ODEMLPFunc_FNO`) receives a window of `n_embeddings = 8` past states, 
 
 ## Loss function
 
-Training minimizes a weighted MSE on both the solution $u$ and its time derivative $\dot{u}$ (computed via natural cubic spline), plus an optional L1 regularizer on the FNO output coefficients (`lib/KSLossFunc.py`, class `KSL1RegRealDtMeanSquaredError`).
+Training minimizes a weighted MSE on both the solution $u$ and its time derivative $\dot{u}$ (computed via natural cubic spline using [`torchcubicspline`](https://github.com/patrick-kidger/torchcubicspline) by Patrick Kidger), plus an optional L1 regularizer on the FNO output coefficients (`lib/KSLossFunc.py`, class `KSL1RegRealDtMeanSquaredError`).
 
 ## Usage
 
@@ -117,6 +117,11 @@ Install with:
 ```bash
 pip install torch neuralop torchcubicspline numpy matplotlib
 ```
+
+## References
+
+- Kassam, A.-K. & Trefethen, L. N. (2005). Fourth-order time-stepping for stiff PDEs. *SIAM Journal on Scientific Computing*, 26(4), 1214–1233. https://doi.org/10.1137/S1064827502410633
+- Kidger, P. (2021). torchcubicspline. https://github.com/patrick-kidger/torchcubicspline
 
 ## Repository structure
 
