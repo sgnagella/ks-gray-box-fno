@@ -23,26 +23,31 @@ def main():
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
     dirname = os.path.dirname(__file__)
-    sigma = 0.1; 0.01
-    file = f"ks_soln_ft_N_128_dt_0.25_tmax_1000_noise=True_sigma={sigma}_tau=1.0.pt"
-    file_gauss = f"ks_soln_ft_N_128_dt_0.25_tmax_1000_noise=True_sigma={sigma}.pt"
+    sigma = 0.05; 0.1; 0.01
+    # file = f"ks_soln_ft_N_128_dt_0.25_tmax_1000_noise=True_sigma={sigma}_tau=1.0.pt"
+    file_gauss = f"ks_soln_ft_N_128_dt_0.25_tmax_2000_noise=True_sigma={sigma}.pt"
     val_file = "ks_soln_ft_N_128_dt_0.25_tmax_1000.pt"
-    filename = os.path.join(dirname, 'training_data', file)
+    # filename = os.path.join(dirname, 'training_data', file)
     dest_file = 'ks_model_v3.pth'; 'ks_model_v2.pth'; 'ks_model.pth'; 
     dest_name = os.path.join(dirname, 'models', dest_file)
     info_dest_name = os.path.join(dirname, 'models', 'ks_model_info.pickle')
-    if not os.path.exists(filename):
-        raise FileNotFoundError(f"File {filename} not found.")
+    # if not os.path.exists(filename):
+    #     raise FileNotFoundError(f"File {filename} not found.")
     os.makedirs(os.path.join(dirname, 'models'), exist_ok=True)
 
     # Load the time series and segment it into smaller trajectories
 
-    traj = torch.load(filename)[1:].numpy()
+    # traj = torch.load(filename)[1:].numpy()
     traj_gauss = torch.load(os.path.join(dirname, 'training_data', file_gauss))[1:].numpy()
-    traj = np.concatenate((traj, traj_gauss), axis=0)
-    traj_list, uscales = utils.segment_data(data=traj, nLengthTraj=5)
-    info = utils.generate_info_dict(train_ratio=0.8, val_ratio=0.1, traj_list=traj_list, uscales=uscales)
-    info_val = utils.generate_info_dict(train_ratio=0.8, val_ratio=0.1, traj_list=utils.segment_data(data=torch.load(os.path.join(dirname, 'training_data', val_file))[1:].numpy(), nLengthTraj=5)[0], uscales=utils.segment_data(data=torch.load(os.path.join(dirname, 'training_data', val_file))[1:].numpy(), nLengthTraj=5)[1])
+    traj_val = torch.load(os.path.join(dirname, 'training_data', val_file))[1:].numpy()
+
+    # traj = np.concatenate((traj, traj_gauss), axis=0)
+    traj_list, uscales = utils.segment_data(data=traj_gauss, nLengthTraj=5)
+
+    traj_val_list, uscales_val = utils.segment_data(data=traj_val, nLengthTraj=5)
+    
+    info = utils.generate_info_dict(train_ratio=0.6, val_ratio=0.2, traj_list=traj_list, uscales=uscales)
+    info_val = utils.generate_info_dict(train_ratio=0.6, val_ratio=0.2, traj_list=traj_val_list, uscales=uscales_val)
     # Create the dataset and dataloader
     train_data = KSDataset.KSDataset(info=info, train_key="train", set_type="train")
     val_data = KSDataset.KSDataset(info=info_val, train_key="train", set_type="val")

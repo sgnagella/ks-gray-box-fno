@@ -48,7 +48,7 @@ class ODEMLPFunc_FNO(nn.Module):
         Class to define the ODE function in terms of the neural network (the FNO)
     """
     
-    def __init__(self, n_modes, in_channels=1, out_channels=1, hidden_channels=64, device=None, return_coeffs=False):
+    def __init__(self, n_modes, in_channels=1, out_channels=1, hidden_channels=2, device=None, return_coeffs=False):
         super().__init__()
         self.model = FNO(
             n_modes=(n_modes,),

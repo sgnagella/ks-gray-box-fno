@@ -42,8 +42,8 @@ def main():
     # Load the time series and segment it into smaller trajectories
     traj = torch.load(filename)[1:].numpy()
     # x = 32*torch.pi*torch.arange(1,N+1)/N
-    traj_list, uscales = utils.segment_data(data=traj, nLengthTraj=8)
-    info = utils.generate_info_dict(train_ratio=0.6, val_ratio=0.1, traj_list=traj_list, uscales=uscales)
+    traj_list, uscales = utils.segment_data(data=traj, nLengthTraj=10)
+    info = utils.generate_info_dict(train_ratio=0.6, val_ratio=0.2, traj_list=traj_list, uscales=uscales)
 
     # Create the dataset and dataloader
     test_data = KSDataset.KSDataset(info=info, train_key="train", set_type="test")
@@ -68,8 +68,12 @@ def main():
                                 device=device,
                                 output_nonlinear=True).to(device)
     # load with map_location to ensure tensors land on the correct device
-    torch.serialization.add_safe_globals([torch._C._nn.gelu])
-    torch.serialization.add_safe_globals([neuralop.layers.spectral_convolution.SpectralConv])
+    try:
+        torch.serialization.add_safe_globals([torch._C._nn.gelu])
+        torch.serialization.add_safe_globals([neuralop.layers.spectral_convolution.SpectralConv])
+    except AttributeError:
+        # add_safe_globals not available; ensure referenced objects are importable so pickle can resolve them
+        pass
     # ckpt = torch.load(pth_file, map_location=device)
     # state_dict = ckpt.get('state_dict', ckpt)
     # model.load_state_dict(state_dict)

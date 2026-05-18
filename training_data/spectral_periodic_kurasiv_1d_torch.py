@@ -92,6 +92,6 @@ def update(frame):
     return ax,
 
 # Create and display the animation
-ani = FuncAnimation(fig, update, frames=len(uu), blit=False, interval=300)
+ani = FuncAnimation(fig, update, frames=len(uu), blit=False, interval=500)
 ani.save('spectral_periodic_kurasiv_1d_torch.gif', writer='pillow')
 plt.show()

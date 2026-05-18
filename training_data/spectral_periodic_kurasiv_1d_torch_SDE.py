@@ -28,12 +28,12 @@ f3 = h*((-4-3*LR-LR**2+LR.exp()*(4-LR))/LR**3).mean(dim=1).real
 uu = [u]
 vv = [v]
 tt = [0]
-tmax = 1000
+tmax = 2000
 nmax = int(tmax/h)
 nplt = int((tmax/tmax)/h)
 g = -.5j*k
 noise = True
-sigma = 0.1 # noise intensity parameter
+sigma = 0.05 # noise intensity parameter
 for n in range(1,nmax+1):
     t = n*h
     Nv = g * fft(ifft(v).real**2)
@@ -104,5 +104,5 @@ def update(frame):
 
 # Create and display the animation
 ani = FuncAnimation(fig, update, frames=len(uu), blit=False, interval=100)
-# ani.save('spectral_periodic_kurasiv_1d_torch.gif', writer='pillow')
+ani.save(f'spectral_periodic_kurasiv_1d_torch_noise_{sigma}.gif', writer='pillow')
 plt.show()
