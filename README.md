@@ -100,7 +100,7 @@ This loads the trained model, runs it on held-out test trajectories, and saves a
 
 ![Predicted nonlinear term](figures/spectral_kurasiv_1d_prediction_vs_truth_nonlinear.gif)
 
-*The FNO's learned approximation of the nonlinear convection $-\frac{1}{2}(u^2)_x$ plotted against the solution amplitude.*
+*The FNO's learned approximation of the nonlinear convection $\frac{1}{2}(u^2)_x$ plotted against the solution amplitude.*
 
 ## Dependencies
 
